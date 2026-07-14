@@ -70,8 +70,20 @@ detect_system() {
 
 detect_port_owner() {
   local port="$1"
+  local line=""
+  local proto=""
+  local process=""
   if command_exists ss; then
-    ss -tulpn 2>/dev/null | awk -v p=":${port}" '$0 ~ p {print $0; exit}' | sed 's/^[[:space:]]*//'
+    line="$(ss -H -ltnp "sport = :${port}" 2>/dev/null | head -n1 || true)"
+    [[ -z "$line" ]] && line="$(ss -H -lunp "sport = :${port}" 2>/dev/null | head -n1 || true)"
+    [[ -z "$line" ]] && return 0
+    proto="$(awk '{print $1}' <<< "$line")"
+    process="$(sed -n 's/.*users:((\"\([^\"]*\)\".*/\1/p' <<< "$line")"
+    if [[ -n "$process" ]]; then
+      printf '%s(%s)' "$process" "${proto:-tcp}"
+    else
+      printf '已占用'
+    fi
   fi
 }
 

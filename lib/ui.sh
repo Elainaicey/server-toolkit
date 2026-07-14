@@ -4,34 +4,76 @@ clear_screen() {
   [[ -t 1 ]] && command_exists clear && clear || true
 }
 
+ui_cols() {
+  local cols="80"
+  if command_exists tput; then
+    cols="$(tput cols 2>/dev/null || printf '80')"
+  fi
+  [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
+  (( cols < 72 )) && cols=72
+  (( cols > 110 )) && cols=110
+  printf '%s' "$cols"
+}
+
+ui_repeat() {
+  local char="${1:-─}"
+  local count="${2:-1}"
+  local i
+  for ((i = 0; i < count; i++)); do
+    printf '%s' "$char"
+  done
+}
+
+ui_rule() {
+  local cols
+  cols="$(ui_cols)"
+  printf '%b' "$DIM"
+  ui_repeat "─" "$cols"
+  printf '%b\n' "$NC"
+}
+
+ui_short() {
+  local value="$1"
+  local max="${2:-28}"
+  if ((${#value} > max)); then
+    printf '%s...' "${value:0:max-3}"
+  else
+    printf '%s' "$value"
+  fi
+}
+
 print_title() {
   local title="$1"
-  printf '\n┌─ %s\n' "$title"
-  printf '└────────────────────────────────────────────────────\n\n'
+  printf '\n%b%s%b\n' "$BOLD$CYAN" "$title" "$NC"
+  ui_rule
+  printf '\n'
 }
 
 print_section() {
   local title="$1"
-  printf '\n[%s]\n' "$title"
+  printf '\n%b▸ %s%b\n' "$CYAN" "$title" "$NC"
 }
 
 print_kv() {
   local key="$1"
   local value="$2"
-  printf '  %-16s %s\n' "$key" "$value"
+  printf '  %b%s%b  %s\n' "$DIM" "$key" "$NC" "$value"
 }
 
 print_main_banner() {
   local version="$1"
+  local cols
+  cols="$(ui_cols)"
   printf '\n'
-  printf '╔══════════════════════════════════════════════════════╗\n'
-  printf '║              Server Toolkit v%-22s ║\n' "$version"
-  printf '║        VPS 初始化 / 运维 / 修复 / 环境管理          ║\n'
-  printf '╚══════════════════════════════════════════════════════╝\n'
+  printf '%b╭─%b %bServer Toolkit%b %bv%s%b\n' "$CYAN" "$NC" "$BOLD" "$NC" "$CYAN" "$version" "$NC"
+  printf '%b│%b  VPS 初始化 · 运维 · 修复 · 环境管理\n' "$CYAN" "$NC"
+  printf '%b╰%b' "$CYAN" "$NC"
+  ui_repeat "─" "$((cols - 1))"
+  printf '\n\n'
 }
 
 print_menu_hint() {
-  printf '\n提示：先看「系统总览」，再按需要进入模块。危险操作会单独确认。\n\n'
+  printf '%b提示%b  建议先看「系统总览与建议」。涉及 SSH、防火墙、系统配置的操作都会再次确认。\n\n' "$YELLOW" "$NC"
 }
 
 read_from_tty() {

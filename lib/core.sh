@@ -21,6 +21,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m'
 
 toolkit_parse_global_args() {
@@ -39,7 +41,7 @@ toolkit_parse_global_args() {
     esac
   done
   if [[ "$NO_COLOR" -eq 1 ]]; then
-    RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; NC=''
+    RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; BOLD=''; DIM=''; NC=''
   fi
 }
 

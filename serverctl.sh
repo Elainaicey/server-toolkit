@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-SERVERCTL_VERSION="0.2.0"
+SERVERCTL_VERSION="0.3.0"
 SOURCE_PATH="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE_PATH" ]]; do
   SOURCE_DIR="$(cd -P -- "$(dirname -- "$SOURCE_PATH")" >/dev/null 2>&1 && pwd)"
@@ -153,35 +153,58 @@ run_profile() {
   log_info "配置档 '${PROFILE_NAME}' 执行完成。"
 }
 
+status_word() {
+  local value="${1:-0}"
+  if [[ "$value" -eq 1 ]]; then
+    printf '可用'
+  else
+    printf '不可用'
+  fi
+}
+
+print_home_dashboard() {
+  local os_line="${OS_ID:-unknown} ${OS_VERSION_ID:-}"
+  local virt_line="${ARCH:-unknown} / ${VIRT:-unknown}"
+  local memory_line="${MEM_TOTAL_MB:-?} MB / Swap ${SWAP_TOTAL_MB:-?} MB"
+  local network_line="IPv4 $(status_word "${HAS_IPV4:-0}") / IPv6 $(status_word "${HAS_IPV6:-0}") / GitHub $(status_word "${GITHUB_OK:-0}")"
+  local security_line="SSH ${SSH_PORT:-?} / 防火墙 $(ui_short "${FIREWALL_STATE:-未知}" 24)"
+  local port_line="80 ${PORT_80:-空闲} / 443 ${PORT_443:-空闲}"
+
+  print_section "当前环境"
+  printf '  %b系统%b  %s\n' "$DIM" "$NC" "$os_line"
+  printf '  %b平台%b  %s\n' "$DIM" "$NC" "$virt_line"
+  printf '  %b资源%b  CPU %s 核 / %s\n' "$DIM" "$NC" "${CPU_CORES:-?}" "$memory_line"
+  printf '  %b网络%b  %s\n' "$DIM" "$NC" "$network_line"
+  printf '  %b安全%b  %s\n' "$DIM" "$NC" "$security_line"
+  printf '  %b端口%b  %s\n' "$DIM" "$NC" "$port_line"
+  printf '\n'
+}
+
+print_home_menu() {
+  print_section "功能入口"
+  printf '  %b基础与系统%b\n' "$CYAN" "$NC"
+  printf '    [1] 系统总览与建议        [2] 快速初始化\n'
+  printf '    [3] 系统设置中心          [4] 软件安装中心\n\n'
+  printf '  %b网络与安全%b\n' "$CYAN" "$NC"
+  printf '    [5] 网络优化 / IPv6 / BBR [6] SSH 与登录安全\n'
+  printf '    [7] 防火墙与端口          [12] 系统修复与回滚\n\n'
+  printf '  %b服务与运行时%b\n' "$CYAN" "$NC"
+  printf '    [8] 容器与 Docker         [9] Web 服务\n'
+  printf '    [10] 数据库 / 缓存        [11] 监控 / 排障 / 备份工具\n\n'
+  printf '  %b报告%b\n' "$CYAN" "$NC"
+  printf '    [13] 生成系统报告         [0] 退出\n\n'
+}
+
 interactive_menu() {
   detect_system || true
   while true; do
     clear_screen
     print_main_banner "$SERVERCTL_VERSION"
-    print_kv "系统" "${OS_ID:-unknown} ${OS_VERSION_ID:-}"
-    print_kv "架构/虚拟化" "${ARCH:-unknown} / ${VIRT:-unknown}"
-    print_kv "内存/Swap" "${MEM_TOTAL_MB:-?} MB / ${SWAP_TOTAL_MB:-?} MB"
-    print_kv "SSH/防火墙" "${SSH_PORT:-?} / ${FIREWALL_STATE:-未知}"
-    print_kv "80/443" "${PORT_80:-空闲} | ${PORT_443:-空闲}"
+    print_home_dashboard
     print_menu_hint
-    cat <<'MENU'
-1. 系统总览与建议
-2. 快速初始化
-3. 系统设置中心
-4. 软件安装中心
-5. 网络优化 / IPv6 / BBR
-6. SSH 与登录安全
-7. 防火墙与端口
-8. 容器与 Docker
-9. Web 服务
-10. 数据库 / 缓存
-11. 监控 / 排障 / 备份工具
-12. 系统修复与回滚
-13. 生成系统报告
-0. 退出
-MENU
+    print_home_menu
     local choice
-    choice="$(ask_input "请选择" "1")"
+    choice="$(ask_input "请输入编号" "1")"
     case "$choice" in
       1) print_detection_summary; pause ;;
       2) base_menu ;;
@@ -197,21 +220,43 @@ MENU
       12) maintenance_menu ;;
       13) generate_report; pause ;;
       0) exit 0 ;;
-      *) log_warn "未知选项"; pause ;;
+      *) log_warn "未知选项：$choice"; pause ;;
     esac
   done
 }
 
 main() {
-  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-    usage
-    exit 0
-  fi
-  local cmd="${1:-menu}"
-  [[ "$cmd" == -* ]] && cmd="menu"
-  [[ "$#" -gt 0 && "${1:-}" != -* ]] && shift || true
+  local cmd="menu"
+  local args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help|help)
+        usage
+        exit 0
+        ;;
+      --profile)
+        [[ -n "${2:-}" ]] || die "--profile requires a value"
+        args+=("$1" "$2")
+        shift 2
+        ;;
+      --yes|-y|--dry-run|--skip-update|--upgrade|--enable-bbr|--no-ssh|--no-color)
+        args+=("$1")
+        shift
+        ;;
+      --*)
+        args+=("$1")
+        shift
+        ;;
+      *)
+        cmd="$1"
+        shift
+        args+=("$@")
+        break
+        ;;
+    esac
+  done
 
-  toolkit_parse_global_args "$@"
+  toolkit_parse_global_args "${args[@]}"
   toolkit_init_runtime
 
   case "$cmd" in

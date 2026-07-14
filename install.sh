@@ -89,8 +89,8 @@ else
   head_url="https://github.com/${REPO}/archive/refs/heads/${REF}.tar.gz"
   tag_url="https://github.com/${REPO}/archive/refs/tags/${REF}.tar.gz"
   log "正在下载 ${REPO}@${REF}"
-  if ! curl -fL --connect-timeout 10 --max-time 120 "$head_url" -o "$archive"; then
-    curl -fL --connect-timeout 10 --max-time 120 "$tag_url" -o "$archive" || die "下载失败"
+  if ! curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$head_url" -o "$archive"; then
+    curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$tag_url" -o "$archive" || die "下载失败"
   fi
   tar -xzf "$archive" -C "$TMP_DIR"
   SRC_DIR="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -n1)"
@@ -117,6 +117,10 @@ if [[ -n "$RUN_PROFILE" ]]; then
   run "$BIN_PATH" "${args[@]}"
 elif [[ "$RUN_MENU" -eq 1 ]]; then
   log "安装完成，正在打开中文交互菜单。"
+  if [[ "$DRY_RUN" -eq 0 && -t 1 ]]; then
+    sleep 0.2
+    command -v clear >/dev/null 2>&1 && clear || true
+  fi
   run "$BIN_PATH" menu
 fi
 

@@ -24,6 +24,8 @@ Server Toolkit 是一个模块化 VPS 初始化与维护工具。它的目标不
 bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/main/install.sh)
 ```
 
+安装器会静默下载源码，完成后自动清屏进入中文仪表盘；以后直接运行 `sudo serverctl` 就能再次打开主菜单。
+
 如果不是 root，推荐：
 
 ```bash
@@ -134,9 +136,9 @@ git push -u origin main
 远程运行时，优先使用固定版本 tag：
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
-sudo bash /tmp/server-toolkit-install.sh --repo 你的用户名/server-toolkit --ref v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
+sudo bash /tmp/server-toolkit-install.sh --repo 你的用户名/server-toolkit --ref v0.3.0
 ```
 
 ## 安全提醒
