@@ -28,17 +28,20 @@ restore_file_from_backup() {
 }
 
 rollback_menu() {
-  print_title "回滚备份"
+  clear_screen
   [[ -d "$BACKUP_ROOT" ]] || { log_warn "没有备份目录：$BACKUP_ROOT"; pause; return 0; }
   local backups=()
   mapfile -t backups < <(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d | sort -r)
   ((${#backups[@]})) || { log_warn "未找到可用备份。"; pause; return 0; }
 
+  ui_panel_start "回滚备份"
   local i=1
   for b in "${backups[@]}"; do
-    printf '%d) %s\n' "$i" "$(basename "$b")"
+    ui_panel_line "[$i] $(basename "$b")"
     i=$((i + 1))
   done
+  ui_panel_end
+  printf '\n'
   local choice
   choice="$(ask_input "请选择备份" "1")"
   [[ "$choice" =~ ^[0-9]+$ ]] || { log_warn "选择无效"; pause; return 0; }

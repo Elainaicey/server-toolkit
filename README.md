@@ -64,8 +64,10 @@ sudo serverctl                  # 打开中文主菜单
 sudo serverctl detect           # 系统检测
 sudo serverctl report           # 生成系统报告
 sudo serverctl system           # 系统设置中心
+sudo serverctl software         # 软件安装中心
 sudo serverctl network          # 网络 / IPv6 / BBR
 sudo serverctl ssh              # SSH 安全配置
+sudo serverctl firewall         # 防火墙与端口
 sudo serverctl docker           # Docker 环境
 sudo serverctl web              # Web 服务
 sudo serverctl repair           # 系统修复

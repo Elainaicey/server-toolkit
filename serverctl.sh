@@ -38,8 +38,10 @@ Server Toolkit v${SERVERCTL_VERSION}
   serverctl install --profile NAME  执行无人值守 profile
   serverctl base                    基础初始化
   serverctl system                  系统设置中心
+  serverctl software                软件安装中心
   serverctl network                 网络 / IPv6 / BBR
   serverctl ssh                     SSH 安全配置
+  serverctl firewall                防火墙与端口
   serverctl docker                  Docker 环境
   serverctl web                     Web 环境
   serverctl database                数据库
@@ -380,8 +382,10 @@ main() {
       ;;
     base) require_root; detect_system; base_menu ;;
     system) require_root; detect_system; system_settings_menu ;;
+    software) require_root; detect_system; software_center_menu ;;
     network) require_root; detect_system; network_menu ;;
     ssh) require_root; detect_system; ssh_menu ;;
+    firewall) require_root; detect_system; firewall_menu ;;
     docker) require_root; detect_system; docker_menu ;;
     web) require_root; detect_system; web_menu ;;
     database) require_root; detect_system; database_menu ;;

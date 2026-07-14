@@ -40,21 +40,25 @@ repair_menu() {
   require_root
   detect_system
   while true; do
+    clear_screen
     repair_show_status
-    echo
-    echo "1) 执行 dpkg --configure -a"
-    echo "2) 执行 apt --fix-broken install"
-    echo "3) hold grub 相关软件包"
-    echo "4) 生成系统报告"
-    echo "0) 返回"
+    printf '\n'
+    ui_panel_start "修复操作"
+    ui_panel_line "[01] 执行 dpkg --configure -a"
+    ui_panel_line "[02] 执行 apt --fix-broken install"
+    ui_panel_line "[03] hold grub 相关软件包"
+    ui_panel_line "[04] 生成系统报告"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
     local choice
-    choice="$(ask_input "请选择" "0")"
+    choice="$(ask_input "请选择" "00")"
     case "$choice" in
-      1) repair_dpkg_configure ;;
-      2) repair_fix_broken ;;
-      3) repair_hold_grub ;;
-      4) generate_report ;;
-      0) break ;;
+      1|01) repair_dpkg_configure ;;
+      2|02) repair_fix_broken ;;
+      3|03) repair_hold_grub ;;
+      4|04) generate_report ;;
+      0|00) break ;;
     esac
     pause
   done
@@ -65,20 +69,20 @@ maintenance_menu() {
   detect_system
   while true; do
     clear_screen
-    print_title "系统修复与回滚"
-    cat <<'MENU'
-1. 查看/修复 APT 或 dpkg 状态
-2. 回滚备份文件
-3. 生成系统报告
-0. 返回
-MENU
+    ui_panel_start "系统修复与回滚"
+    ui_panel_line "[01] 查看/修复 APT 或 dpkg 状态"
+    ui_panel_line "[02] 回滚备份文件"
+    ui_panel_line "[03] 生成系统报告"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
     local choice
-    choice="$(ask_input "请选择" "0")"
+    choice="$(ask_input "请选择" "00")"
     case "$choice" in
-      1) repair_menu ;;
-      2) rollback_menu ;;
-      3) generate_report; pause ;;
-      0) break ;;
+      1|01) repair_menu ;;
+      2|02) rollback_menu ;;
+      3|03) generate_report; pause ;;
+      0|00) break ;;
       *) log_warn "未知选项" ;;
     esac
   done

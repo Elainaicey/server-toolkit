@@ -97,27 +97,28 @@ base_menu() {
   detect_system
   while true; do
     clear_screen
-    print_title "快速初始化"
-    cat <<'MENU'
-1. 安装基础工具
-2. 启用时间同步
-3. 修复 /etc/hosts 主机名解析
-4. 设置时区
-5. 创建 Swapfile
-6. 启用安全自动更新
-7. 执行推荐基础初始化
-0. 返回
-MENU
+    ui_panel_start "快速初始化"
+    ui_panel_line "[01] 安装基础工具"
+    ui_panel_line "[02] 启用时间同步"
+    ui_panel_line "[03] 修复 /etc/hosts 主机名解析"
+    ui_panel_line "[04] 设置时区"
+    ui_panel_line "[05] 创建 Swapfile"
+    ui_panel_line "[06] 启用安全自动更新"
+    ui_panel_rule
+    ui_panel_line "[07] 执行推荐基础初始化"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
     local choice
-    choice="$(ask_input "请选择" "0")"
+    choice="$(ask_input "请选择" "00")"
     case "$choice" in
-      1) pkg_update_index; base_install_core ;;
-      2) base_enable_time_sync ;;
-      3) base_fix_hosts_resolution ;;
-      4) base_set_timezone "$(ask_input "时区" "Asia/Shanghai")" ;;
-      5) base_create_swap "$(ask_input "Swap 大小" "1G")" ;;
-      6) pkg_update_index; base_enable_auto_updates ;;
-      7)
+      1|01) pkg_update_index; base_install_core ;;
+      2|02) base_enable_time_sync ;;
+      3|03) base_fix_hosts_resolution ;;
+      4|04) base_set_timezone "$(ask_input "时区" "Asia/Shanghai")" ;;
+      5|05) base_create_swap "$(ask_input "Swap 大小" "1G")" ;;
+      6|06) pkg_update_index; base_enable_auto_updates ;;
+      7|07)
         pkg_update_index
         base_install_core
         base_enable_time_sync
@@ -126,7 +127,7 @@ MENU
           base_set_timezone "Asia/Shanghai"
         fi
         ;;
-      0) break ;;
+      0|00) break ;;
       *) log_warn "未知选项" ;;
     esac
     pause

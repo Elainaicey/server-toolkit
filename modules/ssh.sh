@@ -95,10 +95,13 @@ JAIL
 ssh_menu() {
   require_root
   detect_system
-  print_title "SSH 安全配置"
-  echo "当前 SSH 服务：$SSH_SERVICE"
-  echo "当前 SSH 端口：$SSH_PORT"
-  echo "是否检测到公钥：$(ssh_public_key_exists && echo 是 || echo 否)"
+  clear_screen
+  ui_panel_start "SSH 安全配置"
+  ui_panel_line "$(printf '%b服务%b  %s' "$DIM" "$NC" "$SSH_SERVICE")"
+  ui_panel_line "$(printf '%b端口%b  %s' "$DIM" "$NC" "$SSH_PORT")"
+  ui_panel_line "$(printf '%b公钥%b  %s' "$DIM" "$NC" "$(ssh_public_key_exists && echo 已检测到 || echo 未检测到)")"
+  ui_panel_end
+  printf '\n'
   local new_port="" disable_password=0 disable_root=0
   if ask_yes_no "是否修改 SSH 端口？" "N"; then
     new_port="$(ask_input "新的 SSH 端口" "2222")"

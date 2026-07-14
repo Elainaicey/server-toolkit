@@ -84,39 +84,36 @@ system_settings_menu() {
   detect_system
   while true; do
     clear_screen
-    print_title "系统设置中心"
-    print_kv "当前主机名" "$(hostname 2>/dev/null || echo 未知)"
-    print_kv "当前时区" "$(timedatectl show -p Timezone --value 2>/dev/null || echo 未知)"
-    print_kv "当前 Locale" "${LANG:-未知}"
-    print_kv "Swap" "${SWAP_TOTAL_MB:-0} MB"
-    cat <<'MENU'
-1. 设置主机名
-2. 设置时区
-3. 设置系统 Locale
-4. 修复 /etc/hosts 主机名解析
-5. 创建/配置 sudo 管理用户
-6. 创建 Swapfile
-7. 启用时间同步
-8. 启用安全自动更新
-0. 返回
-MENU
+    ui_panel_start "系统设置中心"
+    ui_panel_line "$(printf '%b主机名%b  %s' "$DIM" "$NC" "$(hostname 2>/dev/null || echo 未知)")"
+    ui_panel_line "$(printf '%b时区%b    %s' "$DIM" "$NC" "$(timedatectl show -p Timezone --value 2>/dev/null || echo 未知)")"
+    ui_panel_line "$(printf '%bLocale%b  %s' "$DIM" "$NC" "${LANG:-未知}")"
+    ui_panel_line "$(printf '%bSwap%b    %s MB' "$DIM" "$NC" "${SWAP_TOTAL_MB:-0}")"
+    ui_panel_rule
+    ui_panel_line "[01] 设置主机名              [02] 设置时区"
+    ui_panel_line "[03] 设置系统 Locale         [04] 修复 hosts 主机名解析"
+    ui_panel_line "[05] 创建/配置 sudo 用户     [06] 创建 Swapfile"
+    ui_panel_line "[07] 启用时间同步            [08] 启用安全自动更新"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
     local choice
-    choice="$(ask_input "请选择" "0")"
+    choice="$(ask_input "请选择" "00")"
     case "$choice" in
-      1) system_set_hostname "$(ask_input "请输入新主机名" "$(hostname -s 2>/dev/null || echo vps)")" ;;
-      2) base_set_timezone "$(ask_input "请输入时区" "Asia/Shanghai")" ;;
-      3) system_set_locale "$(ask_input "请输入 Locale" "en_US.UTF-8")" ;;
-      4) base_fix_hosts_resolution ;;
-      5)
+      1|01) system_set_hostname "$(ask_input "请输入新主机名" "$(hostname -s 2>/dev/null || echo vps)")" ;;
+      2|02) base_set_timezone "$(ask_input "请输入时区" "Asia/Shanghai")" ;;
+      3|03) system_set_locale "$(ask_input "请输入 Locale" "en_US.UTF-8")" ;;
+      4|04) base_fix_hosts_resolution ;;
+      5|05)
         local user pubkey
         user="$(ask_input "请输入用户名" "admin")"
         pubkey="$(ask_input "请输入 SSH 公钥，可留空" "")"
         system_create_admin_user "$user" "$pubkey"
         ;;
-      6) base_create_swap "$(ask_input "Swap 大小，例如 1G/2G/512M" "1G")" ;;
-      7) base_enable_time_sync ;;
-      8) base_enable_auto_updates ;;
-      0) break ;;
+      6|06) base_create_swap "$(ask_input "Swap 大小，例如 1G/2G/512M" "1G")" ;;
+      7|07) base_enable_time_sync ;;
+      8|08) base_enable_auto_updates ;;
+      0|00) break ;;
       *) log_warn "未知选项" ;;
     esac
     pause

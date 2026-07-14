@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 web_detect_ports() {
-  print_title "Web 端口检测"
-  echo "80:  ${PORT_80:-free/unknown}"
-  echo "443: ${PORT_443:-free/unknown}"
+  ui_panel_start "Web 端口检测"
+  ui_panel_line "80   ${PORT_80:-空闲/未知}"
+  ui_panel_line "443  ${PORT_443:-空闲/未知}"
+  ui_panel_end
 }
 
 web_install_stack() {
@@ -44,18 +45,25 @@ web_install_stack() {
 web_menu() {
   require_root
   detect_system
-  web_detect_ports
+  clear_screen
+  ui_panel_start "Web 服务"
+  ui_panel_line "$(printf '%b80%b   %s' "$DIM" "$NC" "${PORT_80:-空闲/未知}")"
+  ui_panel_line "$(printf '%b443%b  %s' "$DIM" "$NC" "${PORT_443:-空闲/未知}")"
+  ui_panel_rule
+  ui_panel_line "[01] 安装 Caddy"
+  ui_panel_line "[02] 安装 Nginx"
+  ui_panel_line "[00] 返回"
+  ui_panel_end
+  printf '\n'
   if [[ -n "$PORT_80$PORT_443" ]]; then
     log_warn "如果 80/443 已被占用，请确认只让一个 Web 服务监听公网端口。"
   fi
-  echo "1) 安装 Caddy"
-  echo "2) 安装 Nginx"
-  echo "3) 不安装"
   local choice
-  choice="$(ask_input "请选择" "3")"
+  choice="$(ask_input "请选择" "00")"
   case "$choice" in
-    1) web_install_stack caddy ;;
-    2) web_install_stack nginx ;;
+    1|01) web_install_stack caddy ;;
+    2|02) web_install_stack nginx ;;
+    0|00) return 0 ;;
   esac
   pause
 }

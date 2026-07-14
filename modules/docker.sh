@@ -1,10 +1,18 @@
 #!/usr/bin/env bash
 
 docker_detect() {
-  print_title "Docker 检测"
-  command_exists docker && docker --version || echo "Docker：未安装"
-  command_exists docker && docker compose version 2>/dev/null || true
-  systemctl status docker --no-pager 2>/dev/null | sed -n '1,8p' || true
+  ui_panel_start "Docker 检测"
+  if command_exists docker; then
+    ui_panel_line "$(docker --version 2>/dev/null || echo Docker 已安装)"
+    docker compose version >/dev/null 2>&1 && ui_panel_line "$(docker compose version 2>/dev/null)"
+  else
+    ui_panel_line "Docker 未安装"
+  fi
+  ui_panel_end
+  printf '\n'
+  if command_exists systemctl && [[ -d /run/systemd/system ]]; then
+    systemctl status docker --no-pager 2>/dev/null | sed -n '1,8p' || true
+  fi
 }
 
 docker_configure_daemon() {
@@ -77,15 +85,30 @@ DOCKER_APT
 docker_menu() {
   require_root
   detect_system
-  docker_detect
-  echo "1) 安装 Docker 官方版"
-  echo "2) 配置 Docker 日志限制"
-  echo "0) 返回"
+  clear_screen
+  ui_panel_start "Docker 环境"
+  if command_exists docker; then
+    ui_panel_line "$(docker --version 2>/dev/null || echo Docker 已安装)"
+    if docker compose version >/dev/null 2>&1; then
+      ui_panel_line "$(docker compose version 2>/dev/null)"
+    fi
+  else
+    ui_panel_line "Docker 未安装"
+  fi
+  ui_panel_rule
+  ui_panel_line "[01] 安装 Docker 官方版"
+  ui_panel_line "[02] 配置 Docker 日志限制"
+  ui_panel_line "[03] 查看 Docker 检测详情"
+  ui_panel_line "[00] 返回"
+  ui_panel_end
+  printf '\n'
   local choice
-  choice="$(ask_input "请选择" "0")"
+  choice="$(ask_input "请选择" "00")"
   case "$choice" in
-    1) docker_install_official ;;
-    2) docker_configure_daemon ;;
+    1|01) docker_install_official ;;
+    2|02) docker_configure_daemon ;;
+    3|03) docker_detect ;;
+    0|00) return 0 ;;
   esac
   pause
 }

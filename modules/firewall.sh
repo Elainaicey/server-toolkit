@@ -59,21 +59,26 @@ firewall_enable_basic() {
 firewall_menu() {
   require_root
   detect_system
-  print_title "防火墙管理"
-  echo "当前状态：$(detect_firewall_state)"
-  echo "1) 启用基础防火墙并保留 SSH 端口"
-  echo "2) 放行 TCP 端口"
-  echo "0) 返回"
+  clear_screen
+  ui_panel_start "防火墙管理"
+  ui_panel_line "$(printf '%b当前状态%b  %s' "$DIM" "$NC" "$(detect_firewall_state)")"
+  ui_panel_rule
+  ui_panel_line "[01] 启用基础防火墙并保留 SSH 端口"
+  ui_panel_line "[02] 放行 TCP 端口"
+  ui_panel_line "[00] 返回"
+  ui_panel_end
+  printf '\n'
   local choice
-  choice="$(ask_input "请选择" "0")"
+  choice="$(ask_input "请选择" "00")"
   case "$choice" in
-    1) firewall_enable_basic "$(ask_input "额外 TCP 端口，逗号分隔" "")" ;;
-    2)
+    1|01) firewall_enable_basic "$(ask_input "额外 TCP 端口，逗号分隔" "")" ;;
+    2|02)
       local ports p
       ports="$(ask_input "TCP 端口，逗号分隔" "80,443")"
       IFS=',' read -r -a ports_arr <<< "${ports// /}"
       for p in "${ports_arr[@]}"; do firewall_allow_port "$p"; done
       ;;
+    0|00) return 0 ;;
   esac
   pause
 }

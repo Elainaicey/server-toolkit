@@ -5,38 +5,40 @@ software_center_menu() {
   detect_system
   while true; do
     clear_screen
-    print_title "软件安装中心"
-    cat <<'MENU'
-1. 基础工具       curl/wget/git/jq/vim/unzip/tmux
-2. 现代 CLI       ripgrep/fd/bat/fzf/tree/neovim
-3. 编译依赖/库    gcc/make/cmake/pkg-config/ssl/ffi/zlib
-4. 开发运行时     Python/Node.js/Go/Rust/Java/PHP
-5. 容器环境       Docker/Compose
-6. Web 环境       Caddy/Nginx/Certbot
-7. 数据库/缓存    Redis/PostgreSQL/MariaDB/SQLite
-8. 监控排障       sysstat/iotop/iftop/ncdu/tcpdump
-9. 备份同步       rclone/restic/borgbackup/rsync
-10. 安全工具      fail2ban/防火墙/openssl
-11. 代理节点依赖  socat/cron/iptables/nftables/qrencode
-12. 自定义包名安装
-0. 返回
-MENU
+    ui_panel_start "软件安装中心"
+    ui_panel_line "[01] 基础工具        curl/wget/git/jq/vim/unzip/tmux"
+    ui_panel_line "[02] 现代 CLI        ripgrep/fd/bat/fzf/tree/neovim"
+    ui_panel_line "[03] 编译依赖/库     gcc/make/cmake/pkg-config/ssl/ffi/zlib"
+    ui_panel_line "[04] 开发运行时      Python/Node.js/Go/Rust/Java/PHP"
+    ui_panel_rule
+    ui_panel_line "[05] 容器环境        Docker/Compose"
+    ui_panel_line "[06] Web 环境        Caddy/Nginx/Certbot"
+    ui_panel_line "[07] 数据库/缓存     Redis/PostgreSQL/MariaDB/SQLite"
+    ui_panel_line "[08] 监控排障        sysstat/iotop/iftop/ncdu/tcpdump"
+    ui_panel_rule
+    ui_panel_line "[09] 备份同步        rclone/restic/borgbackup/rsync"
+    ui_panel_line "[10] 安全工具        fail2ban/防火墙/openssl"
+    ui_panel_line "[11] 代理节点依赖    socat/cron/iptables/nftables/qrencode"
+    ui_panel_line "[12] 自定义包名安装"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
     local choice
-    choice="$(ask_input "请选择分类" "0")"
+    choice="$(ask_input "请选择分类" "00")"
     case "$choice" in
-      1) pkg_update_index; software_install_basic ;;
-      2) pkg_update_index; tools_install_modern_cli ;;
-      3) pkg_update_index; software_install_build_libs ;;
-      4) software_runtime_menu ;;
-      5) docker_menu ;;
-      6) web_menu ;;
-      7) database_menu ;;
-      8) pkg_update_index; monitor_install_tools ;;
-      9) pkg_update_index; tools_install_backup_tools ;;
+      1|01) pkg_update_index; software_install_basic ;;
+      2|02) pkg_update_index; tools_install_modern_cli ;;
+      3|03) pkg_update_index; software_install_build_libs ;;
+      4|04) software_runtime_menu ;;
+      5|05) docker_menu ;;
+      6|06) web_menu ;;
+      7|07) database_menu ;;
+      8|08) pkg_update_index; monitor_install_tools ;;
+      9|09) pkg_update_index; tools_install_backup_tools ;;
       10) pkg_update_index; tools_install_security_tools ;;
       11) pkg_update_index; software_install_proxy_deps ;;
       12) software_install_custom ;;
-      0) break ;;
+      0|00) break ;;
       *) log_warn "未知选项" ;;
     esac
     pause
@@ -84,28 +86,29 @@ software_install_custom() {
 software_runtime_menu() {
   while true; do
     clear_screen
-    print_title "开发运行时"
-    cat <<'MENU'
-1. Python 3 / pip / venv / pipx
-2. Node.js / npm
-3. Go
-4. Rust / Cargo
-5. Java OpenJDK
-6. PHP-FPM
-7. 全部安装
-0. 返回
-MENU
+    ui_panel_start "开发运行时"
+    ui_panel_line "[01] Python 3 / pip / venv / pipx"
+    ui_panel_line "[02] Node.js / npm"
+    ui_panel_line "[03] Go"
+    ui_panel_line "[04] Rust / Cargo"
+    ui_panel_line "[05] Java OpenJDK"
+    ui_panel_line "[06] PHP-FPM"
+    ui_panel_rule
+    ui_panel_line "[07] 全部安装"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
     local choice
-    choice="$(ask_input "请选择" "0")"
-    pkg_update_index
+    choice="$(ask_input "请选择" "00")"
     case "$choice" in
-      1) install_python_stack ;;
-      2) install_node_stack ;;
-      3) install_go_stack ;;
-      4) install_rust_stack ;;
-      5) install_java_stack ;;
-      6) install_php_stack ;;
-      7)
+      1|01) pkg_update_index; install_python_stack ;;
+      2|02) pkg_update_index; install_node_stack ;;
+      3|03) pkg_update_index; install_go_stack ;;
+      4|04) pkg_update_index; install_rust_stack ;;
+      5|05) pkg_update_index; install_java_stack ;;
+      6|06) pkg_update_index; install_php_stack ;;
+      7|07)
+        pkg_update_index
         install_python_stack
         install_node_stack
         install_go_stack
@@ -113,7 +116,7 @@ MENU
         install_java_stack
         install_php_stack
         ;;
-      0) break ;;
+      0|00) break ;;
       *) log_warn "未知选项" ;;
     esac
     pause

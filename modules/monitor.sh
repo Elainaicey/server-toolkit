@@ -37,7 +37,18 @@ tools_install_security_tools() {
 monitor_menu() {
   require_root
   detect_system
-  ask_yes_no "是否安装 sysstat/iotop/iftop/ncdu/tcpdump/nload？" "Y" && monitor_install_tools
+  clear_screen
+  ui_panel_start "监控工具"
+  ui_panel_line "[01] 安装 sysstat/iotop/iftop/ncdu/tcpdump/nload"
+  ui_panel_line "[00] 返回"
+  ui_panel_end
+  printf '\n'
+  local choice
+  choice="$(ask_input "请选择" "01")"
+  case "$choice" in
+    1|01) monitor_install_tools ;;
+    0|00) return 0 ;;
+  esac
   pause
 }
 
@@ -46,24 +57,24 @@ tools_menu() {
   detect_system
   while true; do
     clear_screen
-    print_title "监控 / 排障 / 备份工具"
-    cat <<'MENU'
-1. 监控排障工具：sysstat/iotop/iftop/ncdu/tcpdump/nload
-2. 现代 CLI 工具：ripgrep/fd/bat/fzf/tree/neovim
-3. 网络诊断工具：mtr/traceroute/whois/socat/nmap/iperf3
-4. 备份同步工具：rclone/restic/borgbackup/rsync
-5. 安全常用工具：fail2ban/ufw/firewalld/openssl
-0. 返回
-MENU
+    ui_panel_start "监控 / 排障 / 备份工具"
+    ui_panel_line "[01] 监控排障工具    sysstat/iotop/iftop/ncdu/tcpdump/nload"
+    ui_panel_line "[02] 现代 CLI 工具   ripgrep/fd/bat/fzf/tree/neovim"
+    ui_panel_line "[03] 网络诊断工具    mtr/traceroute/whois/socat/nmap/iperf3"
+    ui_panel_line "[04] 备份同步工具    rclone/restic/borgbackup/rsync"
+    ui_panel_line "[05] 安全常用工具    fail2ban/ufw/firewalld/openssl"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
     local choice
-    choice="$(ask_input "请选择" "0")"
+    choice="$(ask_input "请选择" "00")"
     case "$choice" in
-      1) monitor_install_tools ;;
-      2) tools_install_modern_cli ;;
-      3) tools_install_network_tools ;;
-      4) tools_install_backup_tools ;;
-      5) tools_install_security_tools ;;
-      0) break ;;
+      1|01) monitor_install_tools ;;
+      2|02) tools_install_modern_cli ;;
+      3|03) tools_install_network_tools ;;
+      4|04) tools_install_backup_tools ;;
+      5|05) tools_install_security_tools ;;
+      0|00) break ;;
       *) log_warn "未知选项" ;;
     esac
     pause

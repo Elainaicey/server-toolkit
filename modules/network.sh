@@ -110,25 +110,33 @@ SYSCTL
 network_menu() {
   require_root
   detect_system
-  print_title "网络 / IPv6 / BBR"
-  network_show
-  echo
-  echo "1) 设置 IPv4 优先"
-  echo "2) 设置 IPv6/系统默认优先"
-  echo "3) 启用 BBR"
-  echo "4) 应用 TCP 档位：普通服务器"
-  echo "5) 应用 TCP 档位：代理节点"
-  echo "6) 应用 TCP 档位：高并发节点"
-  echo "0) 返回"
-  local choice
-  choice="$(ask_input "请选择" "0")"
-  case "$choice" in
-    1) network_set_ip_preference ipv4 ;;
-    2) network_set_ip_preference ipv6 ;;
-    3) network_enable_bbr ;;
-    4) network_apply_tcp_profile normal ;;
-    5) network_apply_tcp_profile proxy ;;
-    6) network_apply_tcp_profile high ;;
-  esac
-  pause
+  while true; do
+    clear_screen
+    ui_panel_start "网络 / IPv6 / BBR"
+    ui_panel_line "$(printf '%bIPv4%b  %s    %bIPv6%b  %s    %bGitHub%b  %s' "$DIM" "$NC" "$(status_word "${HAS_IPV4:-0}")" "$DIM" "$NC" "$(status_word "${HAS_IPV6:-0}")" "$DIM" "$NC" "$(status_word "${GITHUB_OK:-0}")")"
+    ui_panel_rule
+    ui_panel_line "[01] 查看网络详情"
+    ui_panel_line "[02] 设置 IPv4 优先"
+    ui_panel_line "[03] 设置 IPv6/系统默认优先"
+    ui_panel_line "[04] 启用 BBR"
+    ui_panel_line "[05] TCP 档位：普通服务器"
+    ui_panel_line "[06] TCP 档位：代理节点"
+    ui_panel_line "[07] TCP 档位：高并发节点"
+    ui_panel_line "[00] 返回"
+    ui_panel_end
+    printf '\n'
+    local choice
+    choice="$(ask_input "请选择" "00")"
+    case "$choice" in
+      1|01) network_show; pause ;;
+      2|02) network_set_ip_preference ipv4; pause ;;
+      3|03) network_set_ip_preference ipv6; pause ;;
+      4|04) network_enable_bbr; pause ;;
+      5|05) network_apply_tcp_profile normal; pause ;;
+      6|06) network_apply_tcp_profile proxy; pause ;;
+      7|07) network_apply_tcp_profile high; pause ;;
+      0|00) break ;;
+      *) log_warn "未知选项"; pause ;;
+    esac
+  done
 }

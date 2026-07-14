@@ -53,22 +53,25 @@ database_install_from_profile() {
 database_menu() {
   require_root
   detect_system
-  print_title "数据库"
-  echo "1) Redis"
-  echo "2) PostgreSQL"
-  echo "3) MariaDB"
-  echo "4) SQLite"
-  echo "0) 返回"
+  clear_screen
+  ui_panel_start "数据库 / 缓存"
+  ui_panel_line "[01] Redis"
+  ui_panel_line "[02] PostgreSQL"
+  ui_panel_line "[03] MariaDB"
+  ui_panel_line "[04] SQLite"
+  ui_panel_line "[00] 返回"
+  ui_panel_end
+  printf '\n'
   local selected item arr=()
   selected="$(choose_numbers "请选择编号，多个项目用逗号分隔")"
-  [[ -z "$selected" || "$selected" == "0" ]] && return 0
+  [[ -z "$selected" || "$selected" == "0" || "$selected" == "00" ]] && return 0
   IFS=',' read -r -a arr <<< "$selected"
   for item in "${arr[@]}"; do
     case "$item" in
-      1) database_install_redis ;;
-      2) database_install_postgresql ;;
-      3) database_install_mariadb ;;
-      4) database_install_sqlite ;;
+      1|01) database_install_redis ;;
+      2|02) database_install_postgresql ;;
+      3|03) database_install_mariadb ;;
+      4|04) database_install_sqlite ;;
     esac
   done
   pause

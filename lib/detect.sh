@@ -21,6 +21,9 @@ SSH_PORT="22"
 FIREWALL_STATE=""
 PORT_80=""
 PORT_443=""
+DETECT_CACHE_VALID=0
+DETECT_CACHE_TIME=0
+DETECT_CACHE_TTL="${SERVER_TOOLKIT_DETECT_CACHE_TTL:-60}"
 
 detect_one_line() {
   local value="${1:-}"
@@ -35,6 +38,13 @@ detect_first_token() {
 }
 
 detect_system() {
+  local mode="${1:-cached}"
+  local now
+  now="$(date +%s)"
+  if [[ "$mode" != "refresh" && "$DETECT_CACHE_VALID" -eq 1 && "$DETECT_CACHE_TTL" =~ ^[0-9]+$ && $((now - DETECT_CACHE_TIME)) -lt "$DETECT_CACHE_TTL" ]]; then
+    return 0
+  fi
+
   [[ -f /etc/os-release ]] || die "无法检测系统：缺少 /etc/os-release"
   # shellcheck source=/dev/null
   . /etc/os-release
@@ -61,16 +71,17 @@ detect_system() {
   ip -4 route get 1.1.1.1 >/dev/null 2>&1 && HAS_IPV4=1 || HAS_IPV4=0
   ip -6 route get 2606:4700:4700::1111 >/dev/null 2>&1 && HAS_IPV6=1 || HAS_IPV6=0
   getent hosts github.com >/dev/null 2>&1 && DNS_OK=1 || DNS_OK=0
-  if command_exists curl; then
-    curl -fsI --connect-timeout 5 --max-time 10 https://github.com >/dev/null 2>&1 && GITHUB_OK=1 || GITHUB_OK=0
+  GITHUB_OK=0
+  if command_exists curl && [[ "$DNS_OK" -eq 1 ]]; then
+    curl -fsI --connect-timeout "${SERVER_TOOLKIT_NET_CONNECT_TIMEOUT:-1}" --max-time "${SERVER_TOOLKIT_NET_MAX_TIME:-2}" https://github.com >/dev/null 2>&1 && GITHUB_OK=1 || GITHUB_OK=0
   fi
 
   if [[ "$OS_FAMILY" == "debian" ]]; then
     APT_ISSUES="$(dpkg --audit 2>/dev/null | sed -n '1,8p' || true)"
   fi
 
-  if systemctl list-unit-files 2>/dev/null | grep -q '^sshd\.service'; then SSH_SERVICE="sshd";
-  elif systemctl list-unit-files 2>/dev/null | grep -q '^ssh\.service'; then SSH_SERVICE="ssh";
+  if command_exists systemctl && systemctl cat sshd.service >/dev/null 2>&1; then SSH_SERVICE="sshd";
+  elif command_exists systemctl && systemctl cat ssh.service >/dev/null 2>&1; then SSH_SERVICE="ssh";
   else SSH_SERVICE="sshd"; fi
   if command_exists sshd; then
     SSH_PORT="$(sshd -T 2>/dev/null | awk '/^port / {print $2; exit}' || echo 22)"
@@ -83,6 +94,8 @@ detect_system() {
   FIREWALL_STATE="$(detect_one_line "$FIREWALL_STATE")"
   PORT_80="$(detect_one_line "$PORT_80")"
   PORT_443="$(detect_one_line "$PORT_443")"
+  DETECT_CACHE_VALID=1
+  DETECT_CACHE_TIME="$now"
 }
 
 detect_port_owner() {
@@ -118,7 +131,7 @@ detect_firewall_state() {
 }
 
 print_detection_summary() {
-  detect_system
+  detect_system refresh
   print_title "系统检测"
   cat <<SUMMARY
 系统：        ${OS_ID} ${OS_VERSION_ID}
@@ -175,7 +188,7 @@ print_detection_advice() {
 }
 
 generate_report() {
-  detect_system
+  detect_system refresh
   local report="/root/server-report.txt"
   [[ "$DRY_RUN" -eq 1 ]] && report="/tmp/server-report.txt"
   {

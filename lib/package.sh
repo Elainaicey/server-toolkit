@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+PKG_INDEX_UPDATED=0
+
 pkg_installed() {
   local pkg="$1"
   case "$OS_FAMILY" in
@@ -36,11 +38,13 @@ apt_get() {
 
 pkg_update_index() {
   [[ "$SKIP_UPDATE" -eq 1 ]] && { log_info "已跳过软件源刷新。"; return 0; }
+  [[ "$PKG_INDEX_UPDATED" -eq 1 ]] && { log_info "本次会话已刷新软件源，跳过重复刷新。"; return 0; }
   log_step "刷新软件源"
   case "$OS_FAMILY" in
     debian) apt_get update ;;
     rhel) run "$PM" -y makecache || true ;;
   esac
+  PKG_INDEX_UPDATED=1
 }
 
 pkg_upgrade_system() {
