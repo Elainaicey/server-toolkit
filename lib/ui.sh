@@ -35,11 +35,21 @@ ui_rule() {
 ui_short() {
   local value="$1"
   local max="${2:-28}"
-  if ((${#value} > max)); then
-    printf '%s...' "${value:0:max-3}"
-  else
-    printf '%s' "$value"
-  fi
+  local text="" out="" char="" width=0 char_width=0 limit=0 i
+  text="$(ui_oneline "$value")"
+  (( max <= 3 )) && { printf '%s' "$text"; return 0; }
+  limit=$((max - 3))
+  for ((i = 0; i < ${#text}; i++)); do
+    char="${text:i:1}"
+    char_width="$(ui_char_width "$char")"
+    if (( width + char_width > limit )); then
+      printf '%s...' "$out"
+      return 0
+    fi
+    out+="$char"
+    width=$((width + char_width))
+  done
+  printf '%s' "$out"
 }
 
 ui_plain() {
@@ -52,10 +62,29 @@ ui_oneline() {
   sed -E 's/^ +//; s/ +$//' <<< "$value"
 }
 
+ui_char_width() {
+  local char="$1"
+  local LC_ALL=C
+  local bytes="${#char}"
+  case "$char" in
+    "·") printf '1'; return 0 ;;
+  esac
+  if (( bytes <= 1 )); then
+    printf '1'
+  else
+    printf '2'
+  fi
+}
+
 ui_len() {
-  local plain
+  local plain char width=0 char_width=0 i
   plain="$(ui_plain "$(ui_oneline "${1:-}")")"
-  printf '%s' "${#plain}"
+  for ((i = 0; i < ${#plain}; i++)); do
+    char="${plain:i:1}"
+    char_width="$(ui_char_width "$char")"
+    width=$((width + char_width))
+  done
+  printf '%s' "$width"
 }
 
 ui_panel_start() {
@@ -76,10 +105,10 @@ ui_panel_line() {
   inner=$((cols - 4))
   content="$(ui_oneline "$*")"
   plain="$(ui_plain "$content")"
-  len="${#plain}"
+  len="$(ui_len "$plain")"
   if (( len > inner )); then
     content="$(ui_short "$plain" "$inner")"
-    len="${#content}"
+    len="$(ui_len "$content")"
   fi
   pad=$((inner - len))
   (( pad < 0 )) && pad=0

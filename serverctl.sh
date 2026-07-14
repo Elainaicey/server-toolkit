@@ -202,19 +202,19 @@ print_home_dashboard() {
 
 print_home_menu() {
   ui_panel_start "功能入口"
-  ui_panel_line "$(printf '%b基础与系统%b  检测、初始化、系统偏好、软件安装' "$CYAN" "$NC")"
+  ui_panel_line "$(printf '%b基础与系统%b' "$CYAN" "$NC")"
   ui_panel_line "  [01] 系统总览与建议      [02] 快速初始化"
   ui_panel_line "  [03] 系统设置中心        [04] 软件安装中心"
   ui_panel_rule
-  ui_panel_line "$(printf '%b网络与安全%b  IPv6、BBR、SSH、防火墙、修复回滚' "$CYAN" "$NC")"
+  ui_panel_line "$(printf '%b网络与安全%b' "$CYAN" "$NC")"
   ui_panel_line "  [05] 网络优化 / BBR      [06] SSH 与登录安全"
   ui_panel_line "  [07] 防火墙与端口        [12] 系统修复与回滚"
   ui_panel_rule
-  ui_panel_line "$(printf '%b服务与运行时%b  Docker、Web、数据库、监控工具' "$CYAN" "$NC")"
+  ui_panel_line "$(printf '%b服务与运行时%b' "$CYAN" "$NC")"
   ui_panel_line "  [08] 容器与 Docker       [09] Web 服务"
   ui_panel_line "  [10] 数据库 / 缓存       [11] 监控 / 排障 / 备份"
   ui_panel_rule
-  ui_panel_line "$(printf '%b管理%b  报告、卸载、退出' "$CYAN" "$NC")"
+  ui_panel_line "$(printf '%b管理%b' "$CYAN" "$NC")"
   ui_panel_line "  [13] 生成系统报告        [14] 卸载 Server Toolkit"
   ui_panel_line "  [00] 退出"
   ui_panel_end

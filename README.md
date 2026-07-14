@@ -1,40 +1,46 @@
 # Server Toolkit
 
-Server Toolkit 是一个模块化 VPS 初始化与维护工具。它的目标不是“一键乱改系统”，而是：
+Server Toolkit 是一个面向 Debian / Ubuntu VPS 的中文初始化、运维与修复工具。
 
-- 先检测，再建议
-- 默认保守，不自动改 SSH、不默认升级内核
-- 所有关键配置先备份
-- 支持交互菜单和无人值守 profile
-- 支持 GitHub 远程安装
+它的设计目标是：先检测，再建议；危险操作单独确认；关键配置先备份；同时支持交互菜单和无人值守 profile。
 
-## 支持范围
+## 功能特性
 
-- Debian 11/12/13
-- Ubuntu 20.04/22.04/24.04
+- 中文交互式终端面板
+- 系统信息检测与风险建议
+- 基础初始化：依赖、时区、时间同步、hosts、自动更新等
+- 系统设置：主机名、Locale、Swap、管理员用户等
+- 软件安装中心：基础工具、现代 CLI、开发运行时、服务组件
+- 网络优化：IPv4 / IPv6 检测、IP 优先级、BBR、TCP profile
+- SSH 与登录安全配置
+- 防火墙与端口管理
+- Docker / Web / 数据库 / 监控工具模块
+- 系统修复、回滚备份、系统报告
+- 安装器和本体都支持卸载
+
+## 支持环境
+
+- Debian 11 / 12 / 13
+- Ubuntu 20.04 / 22.04 / 24.04
 - amd64 / arm64
 - KVM / LXC / OpenVZ 基础识别
 - IPv4 / IPv6 / IPv6-only 基础检测
 
-## 一行交互运行
+## 安装
 
-默认会安装工具，然后直接打开中文交互菜单：
+一行交互安装：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/main/install.sh)
 ```
 
-安装器会静默下载源码，完成后自动清屏进入中文仪表盘；以后直接运行 `sudo serverctl` 就能再次打开主菜单。
-
-如果不是 root，推荐：
+非 root 环境：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/main/install.sh | sudo bash -s --
 ```
 
-## 稳妥安装方式
-
-先下载、语法检查、再执行，然后打开中文菜单：
+稳妥安装：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/main/install.sh -o /tmp/server-toolkit-install.sh
@@ -42,22 +48,68 @@ bash -n /tmp/server-toolkit-install.sh
 sudo bash /tmp/server-toolkit-install.sh
 ```
 
-安装后：
+默认安装位置：
+
+| 项目 | 路径 |
+| --- | --- |
+| 程序目录 | `/opt/server-toolkit` |
+| 命令入口 | `/usr/local/bin/serverctl` |
+| 日志目录 | `/var/log/server-toolkit` |
+| 备份目录 | `/var/backups/server-toolkit` |
+
+## 常用命令
 
 ```bash
-sudo serverctl
-sudo serverctl detect
-sudo serverctl report
+sudo serverctl                  # 打开中文主菜单
+sudo serverctl detect           # 系统检测
+sudo serverctl report           # 生成系统报告
+sudo serverctl system           # 系统设置中心
+sudo serverctl network          # 网络 / IPv6 / BBR
+sudo serverctl ssh              # SSH 安全配置
+sudo serverctl docker           # Docker 环境
+sudo serverctl web              # Web 服务
+sudo serverctl repair           # 系统修复
+sudo serverctl rollback         # 回滚备份
+sudo serverctl uninstall        # 卸载
 ```
 
-卸载：
+## Profile
+
+无人值守执行：
+
+```bash
+sudo serverctl install --profile minimal --yes
+sudo serverctl install --profile docker --yes
+sudo serverctl install --profile proxy --yes
+sudo serverctl install --profile web --yes
+```
+
+安装器直接执行 profile：
+
+```bash
+sudo bash /tmp/server-toolkit-install.sh --profile docker --yes --no-menu
+```
+
+可用 profile：
+
+| Profile | 说明 |
+| --- | --- |
+| `minimal` | 最小初始化与基础工具 |
+| `proxy` | 代理节点常用配置、BBR、Docker、Web、监控工具 |
+| `docker` | Docker / Compose 与常用工具 |
+| `web` | Web 服务、Docker、防火墙、监控工具 |
+| `dev` | 开发环境、Docker、SQLite、监控工具 |
+| `full` | 全功能示例配置 |
+
+## 卸载
+
+交互式卸载：
 
 ```bash
 sudo serverctl uninstall
-sudo serverctl uninstall --purge   # 同时删除日志和备份
 ```
 
-普通卸载会出现范围选择：
+卸载时可选择范围：
 
 | 选项 | 删除内容 |
 | --- | --- |
@@ -66,45 +118,19 @@ sudo serverctl uninstall --purge   # 同时删除日志和备份
 | `3` | 删除命令入口、安装目录和日志 |
 | `4` | 全部删除，包括日志和备份 |
 
-## 无人值守执行 profile
+无人值守卸载：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/main/install.sh -o /tmp/server-toolkit-install.sh
-bash -n /tmp/server-toolkit-install.sh
-sudo bash /tmp/server-toolkit-install.sh --profile proxy --yes --no-menu
+sudo serverctl uninstall --yes
+sudo serverctl uninstall --purge --yes
 ```
 
-如果仓库名不同：
+安装器卸载：
 
 ```bash
-sudo bash /tmp/server-toolkit-install.sh --repo 你的用户名/server-toolkit --ref main
+sudo bash /tmp/server-toolkit-install.sh --uninstall
+sudo bash /tmp/server-toolkit-install.sh --uninstall --purge --yes
 ```
-
-## 常用命令
-
-```bash
-sudo serverctl                  # 打开中文主菜单
-sudo serverctl detect           # 系统检测
-sudo serverctl report           # 生成 /root/server-report.txt
-sudo serverctl install --profile proxy
-sudo serverctl install --profile docker
-sudo serverctl network
-sudo serverctl ssh
-sudo serverctl repair
-sudo serverctl rollback
-sudo serverctl uninstall
-```
-
-## Profiles / 配置档
-
-| Profile | 说明 |
-| --- | --- |
-| `minimal` | 最小初始化，只安装 curl/wget/git/jq |
-| `proxy` | 代理/VPS 常用：BBR、TCP proxy profile、Docker、Caddy、监控工具 |
-| `docker` | Docker/Compose、基础工具、监控工具 |
-| `web` | Docker、Caddy、80/443、防火墙、监控工具 |
-| `dev` | 开发环境：基础工具、Docker、SQLite、监控工具 |
-| `full` | 全功能示例：Docker、Caddy、Redis、SQLite、BBR、监控工具 |
 
 ## 项目结构
 
@@ -138,37 +164,3 @@ server-toolkit/
     dev.conf
     full.conf
 ```
-
-## GitHub 发布步骤
-
-```bash
-git init
-git add .
-git commit -m "Initial Server Toolkit"
-git branch -M main
-git remote add origin git@github.com:你的用户名/server-toolkit.git
-git push -u origin main
-```
-
-远程运行时，优先使用固定版本 tag：
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-sudo bash /tmp/server-toolkit-install.sh --repo 你的用户名/server-toolkit --ref v0.1.0
-```
-
-也可以用安装器远程卸载：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/main/install.sh -o /tmp/server-toolkit-install.sh
-sudo bash /tmp/server-toolkit-install.sh --uninstall
-sudo bash /tmp/server-toolkit-install.sh --uninstall --purge --yes
-```
-
-## 安全提醒
-
-- 不要把 SSH 私钥、Token、服务器 IP 列表放进仓库。
-- 修改 SSH 前，保留当前连接，另开窗口测试新连接。
-- 云厂商安全组需要手动同步放行端口。
-- 数据库、Redis、Docker API 不建议直接暴露公网。
