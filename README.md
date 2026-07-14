@@ -50,6 +50,13 @@ sudo serverctl detect
 sudo serverctl report
 ```
 
+卸载：
+
+```bash
+sudo serverctl uninstall
+sudo serverctl uninstall --purge   # 同时删除日志和备份
+```
+
 ## 无人值守执行 profile
 
 ```bash
@@ -76,6 +83,7 @@ sudo serverctl network
 sudo serverctl ssh
 sudo serverctl repair
 sudo serverctl rollback
+sudo serverctl uninstall
 ```
 
 ## Profiles / 配置档
@@ -136,9 +144,17 @@ git push -u origin main
 远程运行时，优先使用固定版本 tag：
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
-sudo bash /tmp/server-toolkit-install.sh --repo 你的用户名/server-toolkit --ref v0.3.0
+git tag v0.1.0
+git push origin v0.1.0
+sudo bash /tmp/server-toolkit-install.sh --repo 你的用户名/server-toolkit --ref v0.1.0
+```
+
+也可以用安装器远程卸载：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/main/install.sh -o /tmp/server-toolkit-install.sh
+sudo bash /tmp/server-toolkit-install.sh --uninstall
+sudo bash /tmp/server-toolkit-install.sh --uninstall --purge --yes
 ```
 
 ## 安全提醒

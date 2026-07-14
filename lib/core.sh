@@ -15,6 +15,7 @@ NO_COLOR=0
 OPT_ENABLE_BBR=0
 OPT_NO_SSH=0
 OPT_PROFILE=""
+OPT_PURGE=0
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,6 +36,7 @@ toolkit_parse_global_args() {
       --upgrade) UPGRADE_SYSTEM=1; shift ;;
       --enable-bbr) OPT_ENABLE_BBR=1; shift ;;
       --no-ssh) OPT_NO_SSH=1; shift ;;
+      --purge) OPT_PURGE=1; shift ;;
       --no-color) NO_COLOR=1; shift ;;
       -h|--help) shift ;;
       *) die "未知参数：$1" ;;

@@ -11,6 +11,8 @@ RUN_PROFILE=""
 RUN_MENU=1
 ASSUME_YES=0
 DRY_RUN=0
+UNINSTALL=0
+PURGE_DATA=0
 
 usage() {
   cat <<USAGE
@@ -27,6 +29,8 @@ Server Toolkit 安装器
   --profile NAME        安装后直接执行 profile，例如 proxy/docker/web/dev/full
   --menu                安装后打开中文交互菜单，默认开启
   --no-menu             安装后不打开菜单
+  --uninstall           卸载已安装的 Server Toolkit
+  --purge               卸载时同时删除日志和备份
   --yes, -y             profile 执行时自动确认
   --dry-run             只打印动作，不真正修改
   -h, --help            查看帮助
@@ -41,6 +45,10 @@ Server Toolkit 安装器
 
 无人值守示例：
   sudo bash /tmp/server-toolkit-install.sh --profile proxy --yes --no-menu
+
+卸载示例：
+  sudo bash /tmp/server-toolkit-install.sh --uninstall
+  sudo bash /tmp/server-toolkit-install.sh --uninstall --purge --yes
 USAGE
 }
 
@@ -56,6 +64,55 @@ run() {
   fi
 }
 
+confirm_uninstall() {
+  [[ "$ASSUME_YES" -eq 1 ]] && return 0
+  local answer=""
+  if [[ -t 0 ]]; then
+    read -r -p "确认卸载 Server Toolkit？[y/N]: " answer || true
+  elif { exec 3</dev/tty; } 2>/dev/null; then
+    read -r -p "确认卸载 Server Toolkit？[y/N]: " answer <&3 || true
+    exec 3<&-
+  fi
+  case "$answer" in
+    y|Y|yes|YES|Yes) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+uninstall_installed_toolkit() {
+  log "准备卸载 Server Toolkit"
+  log "安装目录：$INSTALL_DIR"
+  log "命令入口：$BIN_PATH"
+  if [[ "$PURGE_DATA" -eq 1 ]]; then
+    log "将同时删除：/var/log/server-toolkit 和 /var/backups/server-toolkit"
+  else
+    log "日志和备份会保留。"
+  fi
+
+  confirm_uninstall || die "已取消卸载"
+
+  local resolved_bin=""
+  resolved_bin="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
+  if [[ -e "$BIN_PATH" || -L "$BIN_PATH" ]]; then
+    if [[ -z "$resolved_bin" || "$resolved_bin" == "$INSTALL_DIR/serverctl.sh" ]]; then
+      log "删除命令入口：$BIN_PATH"
+      run rm -f "$BIN_PATH"
+    else
+      log "命令入口不指向 $INSTALL_DIR，跳过：$BIN_PATH -> $resolved_bin"
+    fi
+  fi
+
+  if [[ -d "$INSTALL_DIR" ]]; then
+    log "删除安装目录：$INSTALL_DIR"
+    run rm -rf "$INSTALL_DIR"
+  fi
+
+  if [[ "$PURGE_DATA" -eq 1 ]]; then
+    run rm -rf /var/log/server-toolkit /var/backups/server-toolkit
+  fi
+  log "卸载完成。"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
@@ -65,6 +122,8 @@ while [[ $# -gt 0 ]]; do
     --profile) RUN_PROFILE="${2:-}"; RUN_MENU=0; shift 2 ;;
     --menu) RUN_MENU=1; shift ;;
     --no-menu) RUN_MENU=0; shift ;;
+    --uninstall) UNINSTALL=1; RUN_MENU=0; shift ;;
+    --purge) PURGE_DATA=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -73,6 +132,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "${EUID}" -eq 0 ]] || die "请使用 root 运行：sudo bash install.sh"
+if [[ "$UNINSTALL" -eq 1 ]]; then
+  uninstall_installed_toolkit
+  exit 0
+fi
 command -v curl >/dev/null 2>&1 || die "缺少 curl"
 command -v tar >/dev/null 2>&1 || die "缺少 tar"
 

@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-SERVERCTL_VERSION="0.3.0"
+SERVERCTL_VERSION="0.1.0"
 SOURCE_PATH="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE_PATH" ]]; do
   SOURCE_DIR="$(cd -P -- "$(dirname -- "$SOURCE_PATH")" >/dev/null 2>&1 && pwd)"
@@ -48,6 +48,7 @@ Server Toolkit v${SERVERCTL_VERSION}
   serverctl repair                  系统修复
   serverctl rollback                回滚备份
   serverctl maintenance             系统修复与回滚聚合入口
+  serverctl uninstall               卸载 Server Toolkit
 
 全局选项：
   --profile NAME        minimal/proxy/docker/web/dev/full
@@ -57,6 +58,7 @@ Server Toolkit v${SERVERCTL_VERSION}
   --upgrade             基础初始化时升级已安装软件包
   --enable-bbr          执行 profile 时强制启用 BBR
   --no-ssh              执行 profile 时跳过 SSH 修改
+  --purge               卸载时同时删除日志和备份
   --no-color            禁用彩色输出
   -h, --help            查看帮助
 
@@ -162,37 +164,111 @@ status_word() {
   fi
 }
 
+status_badge() {
+  local value="${1:-0}"
+  if [[ "$value" -eq 1 ]]; then
+    ui_badge "可用" "$GREEN"
+  else
+    ui_badge "异常" "$YELLOW"
+  fi
+}
+
+apt_badge() {
+  if [[ -n "${APT_ISSUES:-}" ]]; then
+    ui_badge "需修复" "$YELLOW"
+  else
+    ui_badge "正常" "$GREEN"
+  fi
+}
+
 print_home_dashboard() {
   local os_line="${OS_ID:-unknown} ${OS_VERSION_ID:-}"
   local virt_line="${ARCH:-unknown} / ${VIRT:-unknown}"
-  local memory_line="${MEM_TOTAL_MB:-?} MB / Swap ${SWAP_TOTAL_MB:-?} MB"
-  local network_line="IPv4 $(status_word "${HAS_IPV4:-0}") / IPv6 $(status_word "${HAS_IPV6:-0}") / GitHub $(status_word "${GITHUB_OK:-0}")"
+  local memory_line="CPU ${CPU_CORES:-?} 核 / ${MEM_TOTAL_MB:-?} MB / Swap ${SWAP_TOTAL_MB:-?} MB"
+  local network_line="$(status_badge "${HAS_IPV4:-0}") IPv4  $(status_badge "${HAS_IPV6:-0}") IPv6  $(status_badge "${GITHUB_OK:-0}") GitHub"
   local security_line="SSH ${SSH_PORT:-?} / 防火墙 $(ui_short "${FIREWALL_STATE:-未知}" 24)"
   local port_line="80 ${PORT_80:-空闲} / 443 ${PORT_443:-空闲}"
 
-  print_section "当前环境"
-  printf '  %b系统%b  %s\n' "$DIM" "$NC" "$os_line"
-  printf '  %b平台%b  %s\n' "$DIM" "$NC" "$virt_line"
-  printf '  %b资源%b  CPU %s 核 / %s\n' "$DIM" "$NC" "${CPU_CORES:-?}" "$memory_line"
-  printf '  %b网络%b  %s\n' "$DIM" "$NC" "$network_line"
-  printf '  %b安全%b  %s\n' "$DIM" "$NC" "$security_line"
-  printf '  %b端口%b  %s\n' "$DIM" "$NC" "$port_line"
+  ui_panel_start "当前环境"
+  ui_panel_line "$(printf '%b系统%b  %-20s  %b平台%b  %s' "$DIM" "$NC" "$os_line" "$DIM" "$NC" "$virt_line")"
+  ui_panel_line "$(printf '%b资源%b  %s' "$DIM" "$NC" "$memory_line")"
+  ui_panel_line "$(printf '%b网络%b  %b' "$DIM" "$NC" "$network_line")"
+  ui_panel_line "$(printf '%b包管理%b  %s APT / %s' "$DIM" "$NC" "$(apt_badge)" "${PM:-未知}")"
+  ui_panel_line "$(printf '%b安全%b  %s' "$DIM" "$NC" "$security_line")"
+  ui_panel_line "$(printf '%b端口%b  %s' "$DIM" "$NC" "$port_line")"
+  ui_panel_end
   printf '\n'
 }
 
 print_home_menu() {
-  print_section "功能入口"
-  printf '  %b基础与系统%b\n' "$CYAN" "$NC"
-  printf '    [1] 系统总览与建议        [2] 快速初始化\n'
-  printf '    [3] 系统设置中心          [4] 软件安装中心\n\n'
-  printf '  %b网络与安全%b\n' "$CYAN" "$NC"
-  printf '    [5] 网络优化 / IPv6 / BBR [6] SSH 与登录安全\n'
-  printf '    [7] 防火墙与端口          [12] 系统修复与回滚\n\n'
-  printf '  %b服务与运行时%b\n' "$CYAN" "$NC"
-  printf '    [8] 容器与 Docker         [9] Web 服务\n'
-  printf '    [10] 数据库 / 缓存        [11] 监控 / 排障 / 备份工具\n\n'
-  printf '  %b报告%b\n' "$CYAN" "$NC"
-  printf '    [13] 生成系统报告         [0] 退出\n\n'
+  ui_panel_start "功能入口"
+  ui_panel_line "$(printf '%b基础与系统%b' "$CYAN" "$NC")"
+  ui_panel_line "  [1] 系统总览与建议        [2] 快速初始化"
+  ui_panel_line "  [3] 系统设置中心          [4] 软件安装中心"
+  ui_panel_gap
+  ui_panel_line "$(printf '%b网络与安全%b' "$CYAN" "$NC")"
+  ui_panel_line "  [5] 网络优化 / IPv6 / BBR [6] SSH 与登录安全"
+  ui_panel_line "  [7] 防火墙与端口          [12] 系统修复与回滚"
+  ui_panel_gap
+  ui_panel_line "$(printf '%b服务与运行时%b' "$CYAN" "$NC")"
+  ui_panel_line "  [8] 容器与 Docker         [9] Web 服务"
+  ui_panel_line "  [10] 数据库 / 缓存        [11] 监控 / 排障 / 备份工具"
+  ui_panel_gap
+  ui_panel_line "$(printf '%b管理%b' "$CYAN" "$NC")"
+  ui_panel_line "  [13] 生成系统报告         [14] 卸载 Server Toolkit"
+  ui_panel_line "  [0] 退出"
+  ui_panel_end
+  printf '\n'
+}
+
+uninstall_toolkit() {
+  require_root
+  local install_dir="$ROOT_DIR"
+  local command_path="/usr/local/bin/serverctl"
+  local resolved_command=""
+  local resolved_script="$SCRIPT_PATH/serverctl.sh"
+
+  if command -v serverctl >/dev/null 2>&1; then
+    command_path="$(command -v serverctl)"
+  fi
+  resolved_command="$(readlink -f "$command_path" 2>/dev/null || true)"
+
+  print_title "卸载 Server Toolkit"
+  print_kv "安装目录" "$install_dir"
+  print_kv "命令入口" "$command_path"
+  print_kv "日志目录" "$LOG_DIR"
+  print_kv "备份目录" "$BACKUP_ROOT"
+  printf '\n默认只删除工具本体和 serverctl 命令入口；日志与备份会保留。\n'
+  if [[ "$OPT_PURGE" -eq 1 ]]; then
+    log_warn "已启用 --purge：将同时删除日志和备份目录。"
+  fi
+
+  if [[ "$ASSUME_YES" -ne 1 ]] && ! ask_yes_no "确认卸载 Server Toolkit？" "N"; then
+    log_warn "已取消卸载。"
+    return 0
+  fi
+
+  if [[ -e "$command_path" || -L "$command_path" ]]; then
+    if [[ -z "$resolved_command" || "$resolved_command" == "$resolved_script" || "$resolved_command" == "$install_dir/serverctl.sh" ]]; then
+      run rm -f "$command_path"
+      [[ "$DRY_RUN" -eq 1 ]] && log_info "将删除命令入口：$command_path" || log_info "已删除命令入口：$command_path"
+    else
+      log_warn "命令入口不指向当前安装目录，已跳过：$command_path -> $resolved_command"
+    fi
+  fi
+
+  if [[ -d "$install_dir" ]]; then
+    run rm -rf "$install_dir"
+    [[ "$DRY_RUN" -eq 1 ]] && log_info "将删除安装目录：$install_dir" || log_info "已删除安装目录：$install_dir"
+  fi
+
+  if [[ "$OPT_PURGE" -eq 1 ]]; then
+    [[ -d "$LOG_DIR" ]] && run rm -rf "$LOG_DIR"
+    [[ -d "$BACKUP_ROOT" ]] && run rm -rf "$BACKUP_ROOT"
+    [[ "$DRY_RUN" -eq 1 ]] && log_info "将删除日志与备份。" || log_info "已删除日志与备份。"
+  else
+    log_info "日志与备份已保留：$LOG_DIR / $BACKUP_ROOT"
+  fi
 }
 
 interactive_menu() {
@@ -219,6 +295,7 @@ interactive_menu() {
       11) tools_menu ;;
       12) maintenance_menu ;;
       13) generate_report; pause ;;
+      14) uninstall_toolkit; exit 0 ;;
       0) exit 0 ;;
       *) log_warn "未知选项：$choice"; pause ;;
     esac
@@ -239,7 +316,7 @@ main() {
         args+=("$1" "$2")
         shift 2
         ;;
-      --yes|-y|--dry-run|--skip-update|--upgrade|--enable-bbr|--no-ssh|--no-color)
+      --yes|-y|--dry-run|--skip-update|--upgrade|--enable-bbr|--no-ssh|--purge|--no-color)
         args+=("$1")
         shift
         ;;
@@ -281,6 +358,7 @@ main() {
     rollback) require_root; rollback_menu ;;
     tools) require_root; detect_system; tools_menu ;;
     maintenance) require_root; detect_system; maintenance_menu ;;
+    uninstall) uninstall_toolkit ;;
     *) die "未知命令：$cmd" ;;
   esac
 }

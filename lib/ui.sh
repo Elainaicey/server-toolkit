@@ -42,10 +42,44 @@ ui_short() {
   fi
 }
 
+ui_panel_start() {
+  local title="$1"
+  local cols fill
+  cols="$(ui_cols)"
+  fill=$((cols - ${#title} - 5))
+  (( fill < 12 )) && fill=12
+  printf '%b╭─ %s %b' "$CYAN" "$title" "$NC"
+  ui_repeat "─" "$fill"
+  printf '\n'
+}
+
+ui_panel_line() {
+  printf '%b│%b %s\n' "$CYAN" "$NC" "$*"
+}
+
+ui_panel_gap() {
+  printf '%b│%b\n' "$CYAN" "$NC"
+}
+
+ui_panel_end() {
+  local cols
+  cols="$(ui_cols)"
+  printf '%b╰%b' "$CYAN" "$NC"
+  ui_repeat "─" "$((cols - 1))"
+  printf '\n'
+}
+
+ui_badge() {
+  local text="$1"
+  local color="${2:-$GREEN}"
+  printf '%b[%s]%b' "$color" "$text" "$NC"
+}
+
 print_title() {
   local title="$1"
-  printf '\n%b%s%b\n' "$BOLD$CYAN" "$title" "$NC"
-  ui_rule
+  printf '\n'
+  ui_panel_start "$title"
+  ui_panel_end
   printf '\n'
 }
 
@@ -65,7 +99,9 @@ print_main_banner() {
   local cols
   cols="$(ui_cols)"
   printf '\n'
-  printf '%b╭─%b %bServer Toolkit%b %bv%s%b\n' "$CYAN" "$NC" "$BOLD" "$NC" "$CYAN" "$version" "$NC"
+  printf '%b╭─%b %bServer Toolkit%b %bv%s%b ' "$CYAN" "$NC" "$BOLD" "$NC" "$CYAN" "$version" "$NC"
+  ui_repeat "─" "$((cols - 29))"
+  printf '\n'
   printf '%b│%b  VPS 初始化 · 运维 · 修复 · 环境管理\n' "$CYAN" "$NC"
   printf '%b╰%b' "$CYAN" "$NC"
   ui_repeat "─" "$((cols - 1))"
@@ -73,7 +109,11 @@ print_main_banner() {
 }
 
 print_menu_hint() {
-  printf '%b提示%b  建议先看「系统总览与建议」。涉及 SSH、防火墙、系统配置的操作都会再次确认。\n\n' "$YELLOW" "$NC"
+  ui_panel_start "提示"
+  ui_panel_line "$(printf '%b建议%b  先看「系统总览与建议」，再进入具体模块。' "$YELLOW" "$NC")"
+  ui_panel_line "危险操作会单独确认；卸载默认保留日志和备份。"
+  ui_panel_end
+  printf '\n'
 }
 
 read_from_tty() {
