@@ -10,8 +10,8 @@ ui_cols() {
     cols="$(tput cols 2>/dev/null || printf '80')"
   fi
   [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
-  (( cols < 72 )) && cols=72
-  (( cols > 110 )) && cols=110
+  (( cols < 76 )) && cols=76
+  (( cols > 96 )) && cols=96
   printf '%s' "$cols"
 }
 
@@ -42,31 +42,76 @@ ui_short() {
   fi
 }
 
+ui_plain() {
+  sed -E $'s/\x1B\\[[0-9;]*[[:alpha:]]//g' <<< "${1:-}"
+}
+
+ui_oneline() {
+  local value
+  value="$(printf '%s' "${1:-}" | tr '\r\n\t' '   ')"
+  sed -E 's/^ +//; s/ +$//' <<< "$value"
+}
+
+ui_len() {
+  local plain
+  plain="$(ui_plain "$(ui_oneline "${1:-}")")"
+  printf '%s' "${#plain}"
+}
+
 ui_panel_start() {
   local title="$1"
-  local cols fill
+  local cols fill title_len
   cols="$(ui_cols)"
-  fill=$((cols - ${#title} - 5))
+  title_len="$(ui_len "$title")"
+  fill=$((cols - title_len - 5))
   (( fill < 12 )) && fill=12
   printf '%b╭─ %s %b' "$CYAN" "$title" "$NC"
   ui_repeat "─" "$fill"
-  printf '\n'
+  printf '%b╮%b\n' "$CYAN" "$NC"
 }
 
 ui_panel_line() {
-  printf '%b│%b %s\n' "$CYAN" "$NC" "$*"
+  local cols inner content plain len pad
+  cols="$(ui_cols)"
+  inner=$((cols - 4))
+  content="$(ui_oneline "$*")"
+  plain="$(ui_plain "$content")"
+  len="${#plain}"
+  if (( len > inner )); then
+    content="$(ui_short "$plain" "$inner")"
+    len="${#content}"
+  fi
+  pad=$((inner - len))
+  (( pad < 0 )) && pad=0
+  printf '%b│%b %s' "$CYAN" "$NC" "$content"
+  ui_repeat " " "$pad"
+  printf ' %b│%b\n' "$CYAN" "$NC"
 }
 
 ui_panel_gap() {
+  local cols inner
+  cols="$(ui_cols)"
+  inner=$((cols - 2))
+  printf '%b│%b' "$CYAN" "$NC"
+  ui_repeat " " "$inner"
   printf '%b│%b\n' "$CYAN" "$NC"
+}
+
+ui_panel_rule() {
+  local cols inner
+  cols="$(ui_cols)"
+  inner=$((cols - 2))
+  printf '%b├%b' "$CYAN" "$NC"
+  ui_repeat "─" "$inner"
+  printf '%b┤%b\n' "$CYAN" "$NC"
 }
 
 ui_panel_end() {
   local cols
   cols="$(ui_cols)"
   printf '%b╰%b' "$CYAN" "$NC"
-  ui_repeat "─" "$((cols - 1))"
-  printf '\n'
+  ui_repeat "─" "$((cols - 2))"
+  printf '%b╯%b\n' "$CYAN" "$NC"
 }
 
 ui_badge() {
@@ -91,27 +136,23 @@ print_section() {
 print_kv() {
   local key="$1"
   local value="$2"
-  printf '  %b%s%b  %s\n' "$DIM" "$key" "$NC" "$value"
+  printf '  %b%s%b  %s\n' "$DIM" "$key" "$NC" "$(ui_oneline "$value")"
 }
 
 print_main_banner() {
   local version="$1"
-  local cols
-  cols="$(ui_cols)"
   printf '\n'
-  printf '%b╭─%b %bServer Toolkit%b %bv%s%b ' "$CYAN" "$NC" "$BOLD" "$NC" "$CYAN" "$version" "$NC"
-  ui_repeat "─" "$((cols - 29))"
+  ui_panel_start "$(printf '%bServer Toolkit%b %bv%s%b' "$BOLD" "$NC" "$CYAN" "$version" "$NC")"
+  ui_panel_line "VPS 初始化 · 运维 · 修复 · 环境管理"
+  ui_panel_line "$(printf '%b安全优先%b  可诊断 · 可回滚 · 可交互 · 可无人值守' "$GREEN" "$NC")"
+  ui_panel_end
   printf '\n'
-  printf '%b│%b  VPS 初始化 · 运维 · 修复 · 环境管理\n' "$CYAN" "$NC"
-  printf '%b╰%b' "$CYAN" "$NC"
-  ui_repeat "─" "$((cols - 1))"
-  printf '\n\n'
 }
 
 print_menu_hint() {
   ui_panel_start "提示"
   ui_panel_line "$(printf '%b建议%b  先看「系统总览与建议」，再进入具体模块。' "$YELLOW" "$NC")"
-  ui_panel_line "危险操作会单独确认；卸载默认保留日志和备份。"
+  ui_panel_line "危险操作会单独确认；卸载时可选择保留或清理日志和备份。"
   ui_panel_end
   printf '\n'
 }

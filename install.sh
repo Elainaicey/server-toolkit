@@ -13,6 +13,7 @@ ASSUME_YES=0
 DRY_RUN=0
 UNINSTALL=0
 PURGE_DATA=0
+UNINSTALL_SCOPE=""
 
 usage() {
   cat <<USAGE
@@ -79,16 +80,49 @@ confirm_uninstall() {
   esac
 }
 
+choose_uninstall_scope() {
+  if [[ "$PURGE_DATA" -eq 1 ]]; then
+    UNINSTALL_SCOPE="all"
+    return 0
+  fi
+  if [[ "$ASSUME_YES" -eq 1 ]]; then
+    UNINSTALL_SCOPE="core"
+    return 0
+  fi
+
+  printf '\n请选择卸载范围：\n'
+  printf '  1. 仅删除命令入口\n'
+  printf '  2. 删除命令入口 + 安装目录（推荐）\n'
+  printf '  3. 删除命令入口 + 安装目录 + 日志\n'
+  printf '  4. 全部删除：入口 + 安装目录 + 日志 + 备份\n'
+  printf '  0. 取消\n\n'
+
+  local answer=""
+  if [[ -t 0 ]]; then
+    read -r -p "请选择 [2]: " answer || true
+  elif { exec 3</dev/tty; } 2>/dev/null; then
+    read -r -p "请选择 [2]: " answer <&3 || true
+    exec 3<&-
+  fi
+  answer="${answer:-2}"
+  case "$answer" in
+    0) die "已取消卸载" ;;
+    1) UNINSTALL_SCOPE="entry" ;;
+    2) UNINSTALL_SCOPE="core" ;;
+    3) UNINSTALL_SCOPE="logs" ;;
+    4) UNINSTALL_SCOPE="all" ;;
+    *) die "未知卸载范围：$answer" ;;
+  esac
+}
+
 uninstall_installed_toolkit() {
   log "准备卸载 Server Toolkit"
   log "安装目录：$INSTALL_DIR"
   log "命令入口：$BIN_PATH"
-  if [[ "$PURGE_DATA" -eq 1 ]]; then
-    log "将同时删除：/var/log/server-toolkit 和 /var/backups/server-toolkit"
-  else
-    log "日志和备份会保留。"
-  fi
+  log "日志目录：/var/log/server-toolkit"
+  log "备份目录：/var/backups/server-toolkit"
 
+  choose_uninstall_scope
   confirm_uninstall || die "已取消卸载"
 
   local resolved_bin=""
@@ -102,13 +136,19 @@ uninstall_installed_toolkit() {
     fi
   fi
 
-  if [[ -d "$INSTALL_DIR" ]]; then
+  if [[ "$UNINSTALL_SCOPE" != "entry" && -d "$INSTALL_DIR" ]]; then
     log "删除安装目录：$INSTALL_DIR"
     run rm -rf "$INSTALL_DIR"
   fi
 
-  if [[ "$PURGE_DATA" -eq 1 ]]; then
-    run rm -rf /var/log/server-toolkit /var/backups/server-toolkit
+  if [[ "$UNINSTALL_SCOPE" == "logs" || "$UNINSTALL_SCOPE" == "all" ]]; then
+    log "删除日志目录：/var/log/server-toolkit"
+    run rm -rf /var/log/server-toolkit
+  fi
+
+  if [[ "$UNINSTALL_SCOPE" == "all" ]]; then
+    log "删除备份目录：/var/backups/server-toolkit"
+    run rm -rf /var/backups/server-toolkit
   fi
   log "卸载完成。"
 }

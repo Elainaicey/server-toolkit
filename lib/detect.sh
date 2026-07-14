@@ -22,6 +22,18 @@ FIREWALL_STATE=""
 PORT_80=""
 PORT_443=""
 
+detect_one_line() {
+  local value="${1:-}"
+  value="$(printf '%s' "$value" | tr '\r\n\t' '   ')"
+  sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' <<< "$value"
+}
+
+detect_first_token() {
+  local value
+  value="$(detect_one_line "${1:-}")"
+  awk '{print $1}' <<< "$value"
+}
+
 detect_system() {
   [[ -f /etc/os-release ]] || die "无法检测系统：缺少 /etc/os-release"
   # shellcheck source=/dev/null
@@ -66,6 +78,11 @@ detect_system() {
   FIREWALL_STATE="$(detect_firewall_state)"
   PORT_80="$(detect_port_owner 80)"
   PORT_443="$(detect_port_owner 443)"
+  SSH_PORT="$(detect_first_token "${SSH_PORT:-22}")"
+  [[ -z "$SSH_PORT" ]] && SSH_PORT="22"
+  FIREWALL_STATE="$(detect_one_line "$FIREWALL_STATE")"
+  PORT_80="$(detect_one_line "$PORT_80")"
+  PORT_443="$(detect_one_line "$PORT_443")"
 }
 
 detect_port_owner() {
@@ -75,9 +92,12 @@ detect_port_owner() {
   local process=""
   if command_exists ss; then
     line="$(ss -H -ltnp "sport = :${port}" 2>/dev/null | head -n1 || true)"
-    [[ -z "$line" ]] && line="$(ss -H -lunp "sport = :${port}" 2>/dev/null | head -n1 || true)"
+    [[ -n "$line" ]] && proto="tcp"
+    if [[ -z "$line" ]]; then
+      line="$(ss -H -lunp "sport = :${port}" 2>/dev/null | head -n1 || true)"
+      [[ -n "$line" ]] && proto="udp"
+    fi
     [[ -z "$line" ]] && return 0
-    proto="$(awk '{print $1}' <<< "$line")"
     process="$(sed -n 's/.*users:((\"\([^\"]*\)\".*/\1/p' <<< "$line")"
     if [[ -n "$process" ]]; then
       printf '%s(%s)' "$process" "${proto:-tcp}"

@@ -202,21 +202,21 @@ print_home_dashboard() {
 
 print_home_menu() {
   ui_panel_start "功能入口"
-  ui_panel_line "$(printf '%b基础与系统%b' "$CYAN" "$NC")"
-  ui_panel_line "  [1] 系统总览与建议        [2] 快速初始化"
-  ui_panel_line "  [3] 系统设置中心          [4] 软件安装中心"
-  ui_panel_gap
-  ui_panel_line "$(printf '%b网络与安全%b' "$CYAN" "$NC")"
-  ui_panel_line "  [5] 网络优化 / IPv6 / BBR [6] SSH 与登录安全"
-  ui_panel_line "  [7] 防火墙与端口          [12] 系统修复与回滚"
-  ui_panel_gap
-  ui_panel_line "$(printf '%b服务与运行时%b' "$CYAN" "$NC")"
-  ui_panel_line "  [8] 容器与 Docker         [9] Web 服务"
-  ui_panel_line "  [10] 数据库 / 缓存        [11] 监控 / 排障 / 备份工具"
-  ui_panel_gap
-  ui_panel_line "$(printf '%b管理%b' "$CYAN" "$NC")"
-  ui_panel_line "  [13] 生成系统报告         [14] 卸载 Server Toolkit"
-  ui_panel_line "  [0] 退出"
+  ui_panel_line "$(printf '%b基础与系统%b  检测、初始化、系统偏好、软件安装' "$CYAN" "$NC")"
+  ui_panel_line "  [01] 系统总览与建议      [02] 快速初始化"
+  ui_panel_line "  [03] 系统设置中心        [04] 软件安装中心"
+  ui_panel_rule
+  ui_panel_line "$(printf '%b网络与安全%b  IPv6、BBR、SSH、防火墙、修复回滚' "$CYAN" "$NC")"
+  ui_panel_line "  [05] 网络优化 / BBR      [06] SSH 与登录安全"
+  ui_panel_line "  [07] 防火墙与端口        [12] 系统修复与回滚"
+  ui_panel_rule
+  ui_panel_line "$(printf '%b服务与运行时%b  Docker、Web、数据库、监控工具' "$CYAN" "$NC")"
+  ui_panel_line "  [08] 容器与 Docker       [09] Web 服务"
+  ui_panel_line "  [10] 数据库 / 缓存       [11] 监控 / 排障 / 备份"
+  ui_panel_rule
+  ui_panel_line "$(printf '%b管理%b  报告、卸载、退出' "$CYAN" "$NC")"
+  ui_panel_line "  [13] 生成系统报告        [14] 卸载 Server Toolkit"
+  ui_panel_line "  [00] 退出"
   ui_panel_end
   printf '\n'
 }
@@ -227,20 +227,44 @@ uninstall_toolkit() {
   local command_path="/usr/local/bin/serverctl"
   local resolved_command=""
   local resolved_script="$SCRIPT_PATH/serverctl.sh"
+  local scope="core"
+  local choice=""
 
   if command -v serverctl >/dev/null 2>&1; then
     command_path="$(command -v serverctl)"
   fi
   resolved_command="$(readlink -f "$command_path" 2>/dev/null || true)"
 
-  print_title "卸载 Server Toolkit"
-  print_kv "安装目录" "$install_dir"
-  print_kv "命令入口" "$command_path"
-  print_kv "日志目录" "$LOG_DIR"
-  print_kv "备份目录" "$BACKUP_ROOT"
-  printf '\n默认只删除工具本体和 serverctl 命令入口；日志与备份会保留。\n'
+  ui_panel_start "卸载 Server Toolkit"
+  ui_panel_line "$(printf '%b命令入口%b  %s' "$DIM" "$NC" "$command_path")"
+  ui_panel_line "$(printf '%b安装目录%b  %s' "$DIM" "$NC" "$install_dir")"
+  ui_panel_line "$(printf '%b日志目录%b  %s' "$DIM" "$NC" "$LOG_DIR")"
+  ui_panel_line "$(printf '%b备份目录%b  %s' "$DIM" "$NC" "$BACKUP_ROOT")"
+  ui_panel_end
+  printf '\n'
+
   if [[ "$OPT_PURGE" -eq 1 ]]; then
-    log_warn "已启用 --purge：将同时删除日志和备份目录。"
+    scope="all"
+    log_warn "已启用 --purge：将删除入口、安装目录、日志和备份。"
+  elif [[ "$ASSUME_YES" -eq 1 ]]; then
+    scope="core"
+  else
+    ui_panel_start "请选择卸载范围"
+    ui_panel_line "[1] 仅删除命令入口"
+    ui_panel_line "[2] 删除命令入口 + 安装目录（推荐）"
+    ui_panel_line "[3] 删除命令入口 + 安装目录 + 日志"
+    ui_panel_line "[4] 全部删除：入口 + 安装目录 + 日志 + 备份"
+    ui_panel_line "[0] 取消"
+    ui_panel_end
+    printf '\n'
+    choice="$(ask_choice "请选择" "2" "0 1 2 3 4")"
+    case "$choice" in
+      0) log_warn "已取消卸载。"; return 0 ;;
+      1) scope="entry" ;;
+      2) scope="core" ;;
+      3) scope="logs" ;;
+      4) scope="all" ;;
+    esac
   fi
 
   if [[ "$ASSUME_YES" -ne 1 ]] && ! ask_yes_no "确认卸载 Server Toolkit？" "N"; then
@@ -257,18 +281,26 @@ uninstall_toolkit() {
     fi
   fi
 
-  if [[ -d "$install_dir" ]]; then
+  if [[ "$scope" != "entry" && -d "$install_dir" ]]; then
     run rm -rf "$install_dir"
     [[ "$DRY_RUN" -eq 1 ]] && log_info "将删除安装目录：$install_dir" || log_info "已删除安装目录：$install_dir"
   fi
 
-  if [[ "$OPT_PURGE" -eq 1 ]]; then
+  if [[ "$scope" == "logs" || "$scope" == "all" ]]; then
     [[ -d "$LOG_DIR" ]] && run rm -rf "$LOG_DIR"
-    [[ -d "$BACKUP_ROOT" ]] && run rm -rf "$BACKUP_ROOT"
-    [[ "$DRY_RUN" -eq 1 ]] && log_info "将删除日志与备份。" || log_info "已删除日志与备份。"
-  else
-    log_info "日志与备份已保留：$LOG_DIR / $BACKUP_ROOT"
+    [[ "$DRY_RUN" -eq 1 ]] && log_info "将删除日志目录：$LOG_DIR" || log_info "已删除日志目录：$LOG_DIR"
   fi
+
+  if [[ "$scope" == "all" ]]; then
+    [[ -d "$BACKUP_ROOT" ]] && run rm -rf "$BACKUP_ROOT"
+    [[ "$DRY_RUN" -eq 1 ]] && log_info "将删除备份目录：$BACKUP_ROOT" || log_info "已删除备份目录：$BACKUP_ROOT"
+  fi
+
+  case "$scope" in
+    entry) log_info "安装目录、日志与备份已保留。" ;;
+    core) log_info "日志与备份已保留：$LOG_DIR / $BACKUP_ROOT" ;;
+    logs) log_info "备份已保留：$BACKUP_ROOT" ;;
+  esac
 }
 
 interactive_menu() {
@@ -280,23 +312,23 @@ interactive_menu() {
     print_menu_hint
     print_home_menu
     local choice
-    choice="$(ask_input "请输入编号" "1")"
+    choice="$(ask_input "请输入编号" "01")"
     case "$choice" in
-      1) print_detection_summary; pause ;;
-      2) base_menu ;;
-      3) system_settings_menu ;;
-      4) software_center_menu ;;
-      5) network_menu ;;
-      6) ssh_menu ;;
-      7) firewall_menu ;;
-      8) docker_menu ;;
-      9) web_menu ;;
+      1|01) print_detection_summary; pause ;;
+      2|02) base_menu ;;
+      3|03) system_settings_menu ;;
+      4|04) software_center_menu ;;
+      5|05) network_menu ;;
+      6|06) ssh_menu ;;
+      7|07) firewall_menu ;;
+      8|08) docker_menu ;;
+      9|09) web_menu ;;
       10) database_menu ;;
       11) tools_menu ;;
       12) maintenance_menu ;;
       13) generate_report; pause ;;
       14) uninstall_toolkit; exit 0 ;;
-      0) exit 0 ;;
+      0|00) exit 0 ;;
       *) log_warn "未知选项：$choice"; pause ;;
     esac
   done

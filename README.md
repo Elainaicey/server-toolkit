@@ -57,6 +57,15 @@ sudo serverctl uninstall
 sudo serverctl uninstall --purge   # 同时删除日志和备份
 ```
 
+普通卸载会出现范围选择：
+
+| 选项 | 删除内容 |
+| --- | --- |
+| `1` | 仅删除 `serverctl` 命令入口 |
+| `2` | 删除命令入口和安装目录 |
+| `3` | 删除命令入口、安装目录和日志 |
+| `4` | 全部删除，包括日志和备份 |
+
 ## 无人值守执行 profile
 
 ```bash
