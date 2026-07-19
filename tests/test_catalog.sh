@@ -3,17 +3,18 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
-SOFTWARE_CATALOG="$ROOT_DIR/catalog/software.tsv"
+CONFIG_DIR="$ROOT_DIR/config"
+SOFTWARE_CATALOG="$CONFIG_DIR/software.tsv"
 
-# shellcheck source=../lib/core.sh
-. "$ROOT_DIR/lib/core.sh"
-. "$ROOT_DIR/lib/ui.sh"
-setup_colors
+# shellcheck source=../src/core/runtime.sh
+. "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/ui.sh"
+runtime_colors
 
 package_installed() { return 1; }
 command_exists() { return 1; }
-# shellcheck source=../lib/catalog.sh
-. "$ROOT_DIR/lib/catalog.sh"
+# shellcheck source=../src/core/catalog.sh
+. "$ROOT_DIR/src/core/catalog.sh"
 
 record="$(catalog_record python-venv)"
 IFS='|' read -r id _category _name _description packages handler <<<"$record"
@@ -35,6 +36,7 @@ done < <(catalog_rows)
 captured=""
 confirm() { return 0; }
 require_root() { :; }
+audit() { :; }
 package_install() { captured="package:$1"; }
 software_install_docker() { captured="handler:docker"; }
 software_install_caddy() { captured="handler:caddy"; }

@@ -8,12 +8,13 @@ cd "$ROOT_DIR"
 printf '[check] Bash 语法\n'
 while IFS= read -r file; do
   bash -n "$file"
-done < <(find . -type f -name '*.sh' -not -path './.git/*' | sort)
+done < <(find bin src scripts tests -type f \( -name '*.sh' -o -path 'bin/serverctl' \) -print | sort)
+bash -n install.sh
 
 if command -v shellcheck >/dev/null 2>&1; then
   printf '[check] ShellCheck\n'
   # SC1090/SC1091: 入口根据运行时 ROOT_DIR 加载项目文件。
-  shellcheck -e SC1090,SC1091 serverctl.sh install.sh lib/*.sh features/*.sh scripts/*.sh tests/*.sh
+  shellcheck -e SC1090,SC1091 bin/serverctl install.sh scripts/*.sh src/core/*.sh src/features/*.sh tests/*.sh
 else
   printf '[check] 未安装 shellcheck，跳过静态检查\n'
 fi
@@ -27,11 +28,11 @@ printf '[check] 软件目录格式\n'
 awk -F '|' '
   !/^#/ && NF != 6 { print "invalid catalog line " NR; failed=1 }
   END { exit failed }
-' catalog/software.tsv
+' config/software.tsv
 
 printf '[check] CLI 冒烟测试\n'
-[[ "$(bash serverctl.sh version)" == "Server Toolkit 0.1.0" ]]
-bash serverctl.sh --help | grep -q '每次 install 只接受一个软件 ID'
+[[ "$(bash bin/serverctl version)" == "Server Toolkit 0.1.0" ]]
+bash bin/serverctl --help | grep -q '一次只接受一个软件 ID'
 bash install.sh --help | grep -q 'Server Toolkit 安装器'
 
 printf '[check] 全部通过\n'

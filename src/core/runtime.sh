@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+
+DRY_RUN=0
+NO_COLOR=0
+RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; BOLD=''; DIM=''; NC=''
+AUDIT_LOG="${SERVER_TOOLKIT_AUDIT_LOG:-/var/log/server-toolkit/actions.log}"
+
+runtime_colors() {
+  if [[ "$NO_COLOR" -eq 1 || ! -t 1 ]]; then
+    return 0
+  fi
+  RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
+  BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m'; BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
+}
+
+info() { printf '%b[信息]%b %s\n' "$GREEN" "$NC" "$*"; }
+warn() { printf '%b[提醒]%b %s\n' "$YELLOW" "$NC" "$*" >&2; }
+error() { printf '%b[错误]%b %s\n' "$RED" "$NC" "$*" >&2; }
+die() { error "$*"; exit 1; }
+
+command_exists() { command -v "$1" >/dev/null 2>&1; }
+require_root() { [[ "${EUID}" -eq 0 ]] || die "此操作需要 root 权限，请使用 sudo serverctl。"; }
+
+audit() {
+  local message="$*"
+  [[ "${EUID}" -eq 0 && "$DRY_RUN" -eq 0 ]] || return 0
+  mkdir -p "$(dirname "$AUDIT_LOG")" 2>/dev/null || return 0
+  printf '%s user=%s pid=%s %s\n' "$(date -Is)" "${SUDO_USER:-root}" "$$" "$message" >>"$AUDIT_LOG" 2>/dev/null || true
+}
+
+run() {
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    printf '%b[预览]%b' "$BLUE" "$NC"
+    printf ' %q' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+read_input() {
+  local prompt="$1" default_value="${2:-}" answer="" label="$prompt"
+  [[ -n "$default_value" ]] && label+=" [$default_value]"
+  label+=": "
+  if [[ -t 0 ]]; then
+    read -r -p "$label" answer || true
+  elif [[ -r /dev/tty ]]; then
+    read -r -p "$label" answer </dev/tty || true
+  fi
+  printf '%s' "${answer:-$default_value}"
+}
+
+confirm() {
+  local answer
+  answer="$(read_input "$1 [y/N]" "")"
+  case "$answer" in y|Y|yes|YES|Yes|是|确认) return 0 ;; *) return 1 ;; esac
+}
+
+pause() {
+  [[ -t 0 || -r /dev/tty ]] || return 0
+  read_input "按 Enter 返回" "" >/dev/null
+}
+
+valid_port() {
+  local port="${1:-}"
+  [[ "$port" =~ ^[0-9]+$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 ))
+}
+
+valid_service_name() {
+  [[ "${1:-}" =~ ^[a-zA-Z0-9@_.:-]+$ ]]
+}
+
+safe_managed_path() {
+  local path="${1:-}"
+  [[ "$path" == /* ]] || return 1
+  [[ "$path" != *'/../'* && "$path" != */.. && "$path" != *'/./'* && "$path" != */. ]] || return 1
+  case "$path" in
+    /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var) return 1 ;;
+  esac
+  [[ "${path#/}" == */* ]]
+}
+
+runtime_error() {
+  local line="$1" command="$2" status="$3"
+  error "操作失败（状态 $status，行 $line）：$command"
+  audit "result=failed status=$status line=$line command=$(printf '%q' "$command")"
+}
+
+runtime_init() {
+  runtime_colors
+  trap 'status=$?; runtime_error "$LINENO" "$BASH_COMMAND" "$status"' ERR
+}

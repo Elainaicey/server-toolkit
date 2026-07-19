@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+ENTRY="${BASH_SOURCE[0]}"
+while [[ -L "$ENTRY" ]]; do
+  ENTRY_DIR="$(cd -P -- "$(dirname -- "$ENTRY")" >/dev/null 2>&1 && pwd)"
+  ENTRY="$(readlink "$ENTRY")"; [[ "$ENTRY" == /* ]] || ENTRY="$ENTRY_DIR/$ENTRY"
+done
+ROOT_DIR="${SERVER_TOOLKIT_ROOT:-$(cd -P -- "$(dirname -- "$ENTRY")/.." >/dev/null 2>&1 && pwd)}"
+CONFIG_DIR="${SERVER_TOOLKIT_CONFIG_DIR:-$ROOT_DIR/config}"
+SERVERCTL_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
+
+. "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/ui.sh"
+. "$ROOT_DIR/src/core/platform.sh"
+. "$ROOT_DIR/src/core/backup.sh"
+. "$ROOT_DIR/src/core/catalog.sh"
+. "$ROOT_DIR/src/features/software.sh"
+. "$ROOT_DIR/src/features/dashboard.sh"
+. "$ROOT_DIR/src/features/system.sh"
+. "$ROOT_DIR/src/features/network.sh"
+. "$ROOT_DIR/src/features/security.sh"
+. "$ROOT_DIR/src/features/services.sh"
+. "$ROOT_DIR/src/features/docker.sh"
+. "$ROOT_DIR/src/features/backups.sh"
+
+usage() {
+  cat <<'EOF'
+Server Toolkit 0.1.0
+
+用法：
+  serverctl                       打开交互控制台
+  serverctl status                显示系统仪表盘
+  serverctl doctor                运行环境检查
+  serverctl list [关键词]         查询软件目录
+  serverctl install ID            安装一个软件
+  serverctl remove ID             移除一个软件
+  serverctl ports                 查看监听端口
+  serverctl services              打开服务与日志中心
+  serverctl backups               打开备份与恢复中心
+  serverctl version               显示版本
+
+选项：
+  --dry-run                       预览修改命令
+  --no-color                      禁用颜色
+  -h, --help                      显示帮助
+
+修改动作始终需要人工确认；软件安装和移除一次只接受一个软件 ID。
+EOF
+}
+
+main_menu() {
+  platform_detect
+  local choice
+  while true; do
+    ui_banner
+    printf '%s · %s · %s MB RAM · load %s\n\n' "$OS_NAME" "$ARCH" "$MEMORY_MB" "$LOAD_AVERAGE"
+    ui_item 1 "系统仪表盘" "资源、服务与更新状态"
+    ui_item 2 "软件管理" "搜索、安装或移除一个软件"
+    ui_item 3 "系统管理" "时间、Swap、磁盘与清理"
+    ui_item 4 "网络与端口" "连通性、监听端口与 BBR"
+    ui_item 5 "安全中心" "UFW、SSH 与登录事件"
+    ui_item 6 "服务与日志" "systemd 服务和 Journal"
+    ui_item 7 "Docker" "容器、镜像与磁盘占用"
+    ui_item 8 "备份与恢复" "查看并恢复配置备份"
+    ui_item 0 "退出"
+    printf '\n%b每个中心最多提供一层操作列表；高风险操作会再次确认。%b\n' "$DIM" "$NC"
+    choice="$(read_input "请选择" "1")"
+    case "$choice" in
+      1) dashboard_show; pause ;;
+      2) software_catalog_menu ;;
+      3) system_menu ;;
+      4) network_menu ;;
+      5) security_menu ;;
+      6) services_menu ;;
+      7) docker_menu ;;
+      8) backups_menu ;;
+      0) return 0 ;;
+      *) warn "未知选项：$choice"; pause ;;
+    esac
+  done
+}
+
+main() {
+  local command="menu" command_set=0
+  local arguments=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) DRY_RUN=1 ;;
+      --no-color) NO_COLOR=1 ;;
+      -h|--help|help) runtime_init; usage; return 0 ;;
+      --*) die "未知选项：$1" ;;
+      *) if [[ "$command_set" -eq 0 ]]; then command="$1"; command_set=1; else arguments+=("$1"); fi ;;
+    esac
+    shift
+  done
+  runtime_init
+  case "$command" in
+    menu) ((${#arguments[@]}==0)) || die "menu 不接受参数"; main_menu ;;
+    status)
+      ((${#arguments[@]} == 0)) || die "status 不接受参数"
+      platform_detect
+      dashboard_show
+      ;;
+    doctor)
+      ((${#arguments[@]} == 0)) || die "doctor 不接受参数"
+      platform_detect
+      system_doctor
+      ;;
+    list)
+      ((${#arguments[@]} <= 1)) || die "list 最多接受一个关键词"
+      platform_detect
+      catalog_print "${arguments[0]:-}"
+      ;;
+    install)
+      ((${#arguments[@]} == 1)) || die "install 一次只能接受一个软件 ID"
+      platform_detect
+      catalog_install "${arguments[0]}"
+      ;;
+    remove)
+      ((${#arguments[@]} == 1)) || die "remove 一次只能接受一个软件 ID"
+      platform_detect
+      catalog_remove "${arguments[0]}"
+      ;;
+    ports)
+      ((${#arguments[@]} == 0)) || die "ports 不接受参数"
+      platform_detect
+      network_list_ports
+      ;;
+    services)
+      ((${#arguments[@]} == 0)) || die "services 不接受参数"
+      platform_detect
+      services_menu
+      ;;
+    backups)
+      ((${#arguments[@]} == 0)) || die "backups 不接受参数"
+      platform_detect
+      backups_menu
+      ;;
+    version) printf 'Server Toolkit %s\n' "$SERVERCTL_VERSION" ;;
+    *) die "未知命令：$command" ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then main "$@"; fi
