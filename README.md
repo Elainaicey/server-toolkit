@@ -150,10 +150,14 @@ sudo serverctl --dry-run install docker
 
 ```text
 server-toolkit/
+├── .gitattributes               # 跨平台文本与 LF 换行规则
+├── .github/                     # CI、发布流程、社区规范与徽章资源
+├── .gitignore                   # Git 忽略规则
 ├── bin/
 │   └── serverctl                # CLI、参数解析与顶层导航
 ├── config/
 │   └── software.tsv             # 声明式单项软件目录
+├── docs/                        # 设计、变更记录与发布文档
 ├── scripts/
 │   ├── install.sh               # 安装、原子升级与卸载
 │   └── check.sh                 # 本地和 CI 检查入口
@@ -165,10 +169,12 @@ server-toolkit/
 │       └── *.sh                 # 系统、网络、安全、服务等功能中心
 ├── tests/                       # 离线单元测试与安全边界测试
 ├── install.sh                   # 稳定的一键安装引导入口
+├── LICENSE                      # MIT 许可证
+├── README.md                    # 项目主页
 └── VERSION                      # 唯一版本来源
 ```
 
-完整设计约束与扩展规范见 [`docs/DESIGN.md`](docs/DESIGN.md)，漏洞报告流程见 [`SECURITY.md`](SECURITY.md)，版本发布流程见 [`docs/RELEASE.md`](docs/RELEASE.md)。
+完整设计约束与扩展规范见 [`docs/DESIGN.md`](docs/DESIGN.md)，变更记录见 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)，漏洞报告流程见 [`.github/SECURITY.md`](.github/SECURITY.md)，版本发布流程见 [`docs/RELEASE.md`](docs/RELEASE.md)。
 
 ## 支持范围
 
@@ -218,7 +224,7 @@ cd server-toolkit
 bash scripts/check.sh
 ```
 
-检查流程覆盖 Bash 语法、ShellCheck、单元测试、目录结构、软件目录格式与 CLI 冒烟测试。贡献要求见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+检查流程覆盖 Bash 语法、ShellCheck、单元测试、目录结构、软件目录格式与 CLI 冒烟测试。贡献要求见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)。
 
 ## 许可证
 

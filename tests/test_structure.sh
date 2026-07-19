@@ -5,12 +5,19 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 
 required=(
+  .gitattributes
+  README.md
+  VERSION
+  install.sh
   LICENSE
   .github/assets/badges/version.svg
   .github/assets/badges/shell.svg
   .github/assets/badges/platform.svg
   .github/assets/badges/language.svg
   .github/assets/badges/license.svg
+  .github/CONTRIBUTING.md
+  .github/SECURITY.md
+  docs/CHANGELOG.md
   bin/serverctl
   config/software.tsv
   scripts/install.sh
@@ -27,6 +34,22 @@ required=(
 )
 for path in "${required[@]}"; do
   [[ -e "$ROOT_DIR/$path" ]] || { printf 'FAIL: 缺少 %s\n' "$path" >&2; exit 1; }
+done
+
+for attribute in \
+  '.gitattributes text eol=lf' \
+  '*.sh text eol=lf' \
+  'bin/* text eol=lf' \
+  '*.tsv text eol=lf' \
+  '*.md text eol=lf'; do
+  grep -Fqx "$attribute" "$ROOT_DIR/.gitattributes" || {
+    printf 'FAIL: .gitattributes 缺少 LF 规则：%s\n' "$attribute" >&2
+    exit 1
+  }
+done
+
+for moved_document in CHANGELOG.md CONTRIBUTING.md SECURITY.md; do
+  [[ ! -e "$ROOT_DIR/$moved_document" ]] || { printf 'FAIL: 文档仍位于根目录：%s\n' "$moved_document" >&2; exit 1; }
 done
 
 [[ ! -e "$ROOT_DIR/src/features/docker.sh" ]] || {

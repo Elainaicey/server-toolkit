@@ -16,8 +16,8 @@ tag="${1:-v$version}"
   printf 'FAIL: 标签 %s 与 VERSION %s 不一致\n' "$tag" "$version" >&2
   exit 1
 }
-grep -Fqx "## $version" CHANGELOG.md || {
-  printf 'FAIL: CHANGELOG.md 缺少 %s 发布章节\n' "$version" >&2
+grep -Fqx "## $version" docs/CHANGELOG.md || {
+  printf 'FAIL: docs/CHANGELOG.md 缺少 %s 发布章节\n' "$version" >&2
   exit 1
 }
 grep -Fq 'MIT License' LICENSE || {

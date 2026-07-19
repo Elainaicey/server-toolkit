@@ -189,9 +189,15 @@ fi
 parent_dir="$(dirname -- "$INSTALL_DIR")"
 mkdir -p "$parent_dir" "$(dirname -- "$BIN_PATH")"
 STAGE_DIR="$(mktemp -d "$parent_dir/.server-toolkit-stage.XXXXXX")"
-for entry in bin src config scripts install.sh VERSION README.md CHANGELOG.md LICENSE SECURITY.md; do
+for entry in bin src config docs scripts install.sh VERSION README.md LICENSE; do
   if [[ -e "$SOURCE_DIR/$entry" ]]; then
     cp -a "$SOURCE_DIR/$entry" "$STAGE_DIR/"
+  fi
+done
+mkdir -p "$STAGE_DIR/.github"
+for entry in assets CONTRIBUTING.md SECURITY.md; do
+  if [[ -e "$SOURCE_DIR/.github/$entry" ]]; then
+    cp -a "$SOURCE_DIR/.github/$entry" "$STAGE_DIR/.github/"
   fi
 done
 chmod 0755 "$STAGE_DIR/bin/serverctl" "$STAGE_DIR/install.sh" "$STAGE_DIR/scripts/install.sh"

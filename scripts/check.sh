@@ -41,7 +41,7 @@ bash scripts/install.sh --help | grep -q -- '--purge-data'
 printf '[check] 发布元数据\n'
 version="$(tr -d '[:space:]' < VERSION)"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-grep -Fqx "## $version" CHANGELOG.md
+grep -Fqx "## $version" docs/CHANGELOG.md
 grep -Fq 'MIT License' LICENSE
 grep -Fq 'Copyright (c) 2026 Elainaicey' LICENSE
 if grep -Fq 'img.shields.io' README.md; then
