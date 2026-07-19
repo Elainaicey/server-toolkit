@@ -1,4 +1,4 @@
-name: shell-checks
+name: checks
 
 on:
   push:

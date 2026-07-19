@@ -3,260 +3,162 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-REPO="${SERVER_TOOLKIT_REPO:-Elainaicey/server-toolkit}"
+REPOSITORY="${SERVER_TOOLKIT_REPO:-Elainaicey/server-toolkit}"
 REF="${SERVER_TOOLKIT_REF:-main}"
 INSTALL_DIR="${SERVER_TOOLKIT_INSTALL_DIR:-/opt/server-toolkit}"
 BIN_PATH="${SERVER_TOOLKIT_BIN_PATH:-/usr/local/bin/serverctl}"
-RUN_PROFILE=""
-RUN_MENU=1
-ASSUME_YES=0
 DRY_RUN=0
 UNINSTALL=0
-PURGE_DATA=0
-UNINSTALL_SCOPE=""
+TEMP_ROOT=""
+STAGE_DIR=""
 
 usage() {
-  cat <<USAGE
+  cat <<EOF
 Server Toolkit 安装器
 
 用法：
   sudo bash install.sh [选项]
 
 选项：
-  --repo OWNER/REPO     GitHub 仓库，默认：${REPO}
-  --ref REF             分支或版本标签，默认：${REF}
-  --dir PATH            安装目录，默认：${INSTALL_DIR}
-  --bin PATH            命令入口，默认：${BIN_PATH}
-  --profile NAME        安装后直接执行 profile，例如 proxy/docker/web/dev/full
-  --menu                安装后打开中文交互菜单，默认开启
-  --no-menu             安装后不打开菜单
-  --uninstall           卸载已安装的 Server Toolkit
-  --purge               卸载时同时删除日志和备份
-  --yes, -y             profile 执行时自动确认
-  --dry-run             只打印动作，不真正修改
-  -h, --help            查看帮助
-
-推荐一行交互安装：
-  bash <(curl -fsSL https://raw.githubusercontent.com/${REPO}/${REF}/install.sh)
-
-推荐稳妥安装：
-  curl -fsSL https://raw.githubusercontent.com/${REPO}/${REF}/install.sh -o /tmp/server-toolkit-install.sh
-  bash -n /tmp/server-toolkit-install.sh
-  sudo bash /tmp/server-toolkit-install.sh
-
-无人值守示例：
-  sudo bash /tmp/server-toolkit-install.sh --profile proxy --yes --no-menu
-
-卸载示例：
-  sudo bash /tmp/server-toolkit-install.sh --uninstall
-  sudo bash /tmp/server-toolkit-install.sh --uninstall --purge --yes
-USAGE
+  --repo OWNER/REPO     源码仓库，默认 $REPOSITORY
+  --ref REF             分支或标签，默认 $REF
+  --dir PATH            安装目录，默认 $INSTALL_DIR
+  --bin PATH            命令入口，默认 $BIN_PATH
+  --dry-run             只显示安装目标
+  --uninstall           卸载程序文件，保留配置备份
+  -h, --help            显示帮助
+EOF
 }
 
-log() { printf '[安装器] %s\n' "$*"; }
+info() { printf '[安装器] %s\n' "$*"; }
 die() { printf '[安装器][错误] %s\n' "$*" >&2; exit 1; }
-run() {
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf '[DRY-RUN]'
-    printf ' %q' "$@"
-    printf '\n'
-  else
-    "$@"
-  fi
-}
 
-validate_paths() {
-  [[ "$INSTALL_DIR" == /* ]] || die "安装目录必须是绝对路径：$INSTALL_DIR"
-  [[ "$INSTALL_DIR" != *'/../'* && "$INSTALL_DIR" != */.. && "$INSTALL_DIR" != *'/./'* && "$INSTALL_DIR" != */. ]] || die "安装目录包含不安全的路径段：$INSTALL_DIR"
-  case "$INSTALL_DIR" in
-    /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
-      die "拒绝使用过于宽泛的安装目录：$INSTALL_DIR"
-      ;;
-  esac
-  [[ "${INSTALL_DIR#/}" == */* ]] || die "安装目录至少需要两级路径：$INSTALL_DIR"
-  [[ ! -L "$INSTALL_DIR" ]] || die "安装目录不能是符号链接：$INSTALL_DIR"
-  if [[ -d "$INSTALL_DIR" ]] && find "$INSTALL_DIR" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
-    [[ -f "$INSTALL_DIR/serverctl.sh" && -d "$INSTALL_DIR/lib" && -d "$INSTALL_DIR/modules" ]] || die "非空安装目录不属于 Server Toolkit，拒绝覆盖：$INSTALL_DIR"
-  fi
-
-  [[ "$BIN_PATH" == /* && "$BIN_PATH" != "/" ]] || die "命令入口必须是绝对文件路径：$BIN_PATH"
-  [[ ! -d "$BIN_PATH" ]] || die "命令入口不能是目录：$BIN_PATH"
-  if [[ "$UNINSTALL" -eq 0 ]]; then
-    if [[ -e "$BIN_PATH" && ! -L "$BIN_PATH" ]]; then
-      die "命令入口已存在且不是符号链接，拒绝覆盖：$BIN_PATH"
-    fi
-    if [[ -L "$BIN_PATH" ]]; then
-      local current_target
-      current_target="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
-      [[ "$current_target" == "$INSTALL_DIR/serverctl.sh" ]] || die "命令入口指向其他程序，拒绝覆盖：$BIN_PATH -> ${current_target:-未知目标}"
-    fi
-  fi
-}
-
-confirm_uninstall() {
-  [[ "$ASSUME_YES" -eq 1 ]] && return 0
-  local answer=""
+read_tty() {
+  local prompt="$1" answer=""
   if [[ -t 0 ]]; then
-    read -r -p "确认卸载 Server Toolkit？[y/N]: " answer || true
-  elif { exec 3</dev/tty; } 2>/dev/null; then
-    read -r -p "确认卸载 Server Toolkit？[y/N]: " answer <&3 || true
-    exec 3<&-
+    read -r -p "$prompt" answer || true
+  elif [[ -r /dev/tty ]]; then
+    read -r -p "$prompt" answer </dev/tty || true
   fi
-  case "$answer" in
-    y|Y|yes|YES|Yes) return 0 ;;
-    *) return 1 ;;
+  printf '%s' "$answer"
+}
+
+confirm() {
+  local answer
+  answer="$(read_tty "$1 [y/N]: ")"
+  [[ "$answer" == "y" || "$answer" == "Y" || "$answer" == "yes" || "$answer" == "YES" ]]
+}
+
+safe_path() {
+  local path="$1"
+  [[ "$path" == /* ]] || return 1
+  [[ "$path" != *'/../'* && "$path" != */.. && "$path" != *'/./'* && "$path" != */. ]] || return 1
+  case "$path" in
+    /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var) return 1 ;;
   esac
+  [[ "${path#/}" == */* ]]
 }
 
-choose_uninstall_scope() {
-  if [[ "$PURGE_DATA" -eq 1 ]]; then
-    UNINSTALL_SCOPE="all"
-    return 0
-  fi
-  if [[ "$ASSUME_YES" -eq 1 ]]; then
-    UNINSTALL_SCOPE="core"
-    return 0
-  fi
-
-  printf '\n请选择卸载范围：\n'
-  printf '  1. 仅删除命令入口\n'
-  printf '  2. 删除命令入口 + 安装目录（推荐）\n'
-  printf '  3. 删除命令入口 + 安装目录 + 日志\n'
-  printf '  4. 全部删除：入口 + 安装目录 + 日志 + 备份\n'
-  printf '  0. 取消\n\n'
-
-  local answer=""
-  if [[ -t 0 ]]; then
-    read -r -p "请选择 [2]: " answer || true
-  elif { exec 3</dev/tty; } 2>/dev/null; then
-    read -r -p "请选择 [2]: " answer <&3 || true
-    exec 3<&-
-  fi
-  answer="${answer:-2}"
-  case "$answer" in
-    0) die "已取消卸载" ;;
-    1) UNINSTALL_SCOPE="entry" ;;
-    2) UNINSTALL_SCOPE="core" ;;
-    3) UNINSTALL_SCOPE="logs" ;;
-    4) UNINSTALL_SCOPE="all" ;;
-    *) die "未知卸载范围：$answer" ;;
-  esac
+cleanup() {
+  [[ -z "$STAGE_DIR" || ! -d "$STAGE_DIR" ]] || rm -rf -- "$STAGE_DIR"
+  [[ -z "$TEMP_ROOT" || ! -d "$TEMP_ROOT" ]] || rm -rf -- "$TEMP_ROOT"
 }
-
-uninstall_installed_toolkit() {
-  log "准备卸载 Server Toolkit"
-  log "安装目录：$INSTALL_DIR"
-  log "命令入口：$BIN_PATH"
-  log "日志目录：/var/log/server-toolkit"
-  log "备份目录：/var/backups/server-toolkit"
-
-  choose_uninstall_scope
-  confirm_uninstall || die "已取消卸载"
-
-  local resolved_bin=""
-  resolved_bin="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
-  if [[ -e "$BIN_PATH" || -L "$BIN_PATH" ]]; then
-    if [[ -z "$resolved_bin" || "$resolved_bin" == "$INSTALL_DIR/serverctl.sh" ]]; then
-      log "删除命令入口：$BIN_PATH"
-      run rm -f "$BIN_PATH"
-    else
-      log "命令入口不指向 $INSTALL_DIR，跳过：$BIN_PATH -> $resolved_bin"
-    fi
-  fi
-
-  if [[ "$UNINSTALL_SCOPE" != "entry" && -d "$INSTALL_DIR" ]]; then
-    log "删除安装目录：$INSTALL_DIR"
-    run rm -rf "$INSTALL_DIR"
-  fi
-
-  if [[ "$UNINSTALL_SCOPE" == "logs" || "$UNINSTALL_SCOPE" == "all" ]]; then
-    log "删除日志目录：/var/log/server-toolkit"
-    run rm -rf /var/log/server-toolkit
-  fi
-
-  if [[ "$UNINSTALL_SCOPE" == "all" ]]; then
-    log "删除备份目录：/var/backups/server-toolkit"
-    run rm -rf /var/backups/server-toolkit
-  fi
-  log "卸载完成。"
-}
+trap cleanup EXIT
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --repo) REPO="${2:-}"; shift 2 ;;
-    --ref) REF="${2:-}"; shift 2 ;;
-    --dir) INSTALL_DIR="${2:-}"; shift 2 ;;
-    --bin) BIN_PATH="${2:-}"; shift 2 ;;
-    --profile) RUN_PROFILE="${2:-}"; RUN_MENU=0; shift 2 ;;
-    --menu) RUN_MENU=1; shift ;;
-    --no-menu) RUN_MENU=0; shift ;;
-    --uninstall) UNINSTALL=1; RUN_MENU=0; shift ;;
-    --purge) PURGE_DATA=1; shift ;;
-    --yes|-y) ASSUME_YES=1; shift ;;
+    --repo) [[ -n "${2:-}" ]] || die "--repo 缺少值"; REPOSITORY="$2"; shift 2 ;;
+    --ref) [[ -n "${2:-}" ]] || die "--ref 缺少值"; REF="$2"; shift 2 ;;
+    --dir) [[ -n "${2:-}" ]] || die "--dir 缺少值"; INSTALL_DIR="$2"; shift 2 ;;
+    --bin) [[ -n "${2:-}" ]] || die "--bin 缺少值"; BIN_PATH="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --uninstall) UNINSTALL=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "未知参数：$1" ;;
   esac
 done
 
-validate_paths
 [[ "${EUID}" -eq 0 ]] || die "请使用 root 运行：sudo bash install.sh"
+safe_path "$INSTALL_DIR" || die "不安全的安装目录：$INSTALL_DIR"
+[[ "$BIN_PATH" == /* && "$BIN_PATH" != "/" && ! -d "$BIN_PATH" ]] || die "命令入口必须是绝对文件路径：$BIN_PATH"
+[[ ! -L "$INSTALL_DIR" ]] || die "安装目录不能是符号链接：$INSTALL_DIR"
+
 if [[ "$UNINSTALL" -eq 1 ]]; then
-  uninstall_installed_toolkit
+  [[ -d "$INSTALL_DIR" ]] || { info "未找到安装目录。"; exit 0; }
+  [[ -f "$INSTALL_DIR/serverctl.sh" && -d "$INSTALL_DIR/features" && -d "$INSTALL_DIR/lib" ]] || die "目录不像 Server Toolkit，拒绝删除：$INSTALL_DIR"
+  confirm "删除 $INSTALL_DIR 和命令入口？" || { info "已取消。"; exit 0; }
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    info "将删除 $INSTALL_DIR"
+    info "将检查并删除 $BIN_PATH"
+    exit 0
+  fi
+  resolved_bin="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
+  [[ "$resolved_bin" != "$INSTALL_DIR/serverctl.sh" ]] || rm -f -- "$BIN_PATH"
+  rm -rf -- "$INSTALL_DIR"
+  info "卸载完成；${SERVER_TOOLKIT_BACKUP_ROOT:-/var/backups/server-toolkit} 下的备份不会被删除。"
   exit 0
 fi
-command -v curl >/dev/null 2>&1 || die "缺少 curl"
-command -v tar >/dev/null 2>&1 || die "缺少 tar"
+
+if [[ -e "$BIN_PATH" && ! -L "$BIN_PATH" ]]; then
+  die "命令入口已经存在且不是符号链接：$BIN_PATH"
+fi
+if [[ -L "$BIN_PATH" ]]; then
+  current_target="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
+  [[ "$current_target" == "$INSTALL_DIR/serverctl.sh" ]] || die "命令入口指向其他程序：$BIN_PATH"
+fi
+if [[ -d "$INSTALL_DIR" ]]; then
+  [[ -f "$INSTALL_DIR/serverctl.sh" && -d "$INSTALL_DIR/lib" ]] || die "非空安装目录不属于 Server Toolkit：$INSTALL_DIR"
+fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
-SRC_DIR=""
-TMP_DIR=""
-
-if [[ -f "$SCRIPT_DIR/serverctl.sh" && -d "$SCRIPT_DIR/lib" && -d "$SCRIPT_DIR/modules" ]]; then
-  SRC_DIR="$SCRIPT_DIR"
-  log "使用本地源码：$SRC_DIR"
+SOURCE_DIR=""
+if [[ -f "$SCRIPT_DIR/serverctl.sh" && -d "$SCRIPT_DIR/features" && -d "$SCRIPT_DIR/catalog" ]]; then
+  SOURCE_DIR="$SCRIPT_DIR"
 else
-  TMP_DIR="$(mktemp -d)"
-  archive="$TMP_DIR/source.tar.gz"
-  head_url="https://github.com/${REPO}/archive/refs/heads/${REF}.tar.gz"
-  tag_url="https://github.com/${REPO}/archive/refs/tags/${REF}.tar.gz"
-  log "正在下载 ${REPO}@${REF}"
-  if ! curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$head_url" -o "$archive"; then
-    curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$tag_url" -o "$archive" || die "下载失败"
+  command -v curl >/dev/null 2>&1 || die "缺少 curl"
+  command -v tar >/dev/null 2>&1 || die "缺少 tar"
+  TEMP_ROOT="$(mktemp -d)"
+  archive="$TEMP_ROOT/source.tar.gz"
+  info "下载 $REPOSITORY@$REF"
+  branch_url="https://github.com/$REPOSITORY/archive/refs/heads/$REF.tar.gz"
+  tag_url="https://github.com/$REPOSITORY/archive/refs/tags/$REF.tar.gz"
+  if ! curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$branch_url" -o "$archive"; then
+    curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$tag_url" -o "$archive" || die "下载源码失败"
   fi
-  tar -xzf "$archive" -C "$TMP_DIR"
-  SRC_DIR="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+  tar -xzf "$archive" -C "$TEMP_ROOT"
+  SOURCE_DIR="$(find "$TEMP_ROOT" -mindepth 1 -maxdepth 1 -type d | head -n1)"
 fi
 
-[[ -f "$SRC_DIR/serverctl.sh" ]] || die "源码中缺少 serverctl.sh"
-[[ -d "$SRC_DIR/lib" && -d "$SRC_DIR/modules" && -d "$SRC_DIR/profiles" && -f "$SRC_DIR/catalog/packages.tsv" ]] || die "源码目录不完整"
+[[ -f "$SOURCE_DIR/serverctl.sh" && -d "$SOURCE_DIR/lib" && -d "$SOURCE_DIR/features" && -f "$SOURCE_DIR/catalog/software.tsv" ]] || die "源码结构不完整"
+[[ "$SOURCE_DIR" != "$INSTALL_DIR" ]] || die "不能把项目安装到源码目录自身"
 
-log "正在安装到 $INSTALL_DIR"
-run mkdir -p "$INSTALL_DIR"
-for entry in serverctl.sh install.sh lib modules profiles catalog README.md CHANGELOG.md; do
-  [[ -e "$SRC_DIR/$entry" ]] && run cp -a "$SRC_DIR/$entry" "$INSTALL_DIR"/
+confirm "将 Server Toolkit 安装到 $INSTALL_DIR？旧安装会被完整替换。" || { info "已取消。"; exit 0; }
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  info "将完整替换 $INSTALL_DIR"
+  info "将创建命令入口 $BIN_PATH"
+  exit 0
+fi
+
+parent_dir="$(dirname -- "$INSTALL_DIR")"
+mkdir -p "$parent_dir" "$(dirname -- "$BIN_PATH")"
+STAGE_DIR="$(mktemp -d "$parent_dir/.server-toolkit-stage.XXXXXX")"
+for entry in serverctl.sh install.sh lib features catalog README.md CHANGELOG.md; do
+  [[ -e "$SOURCE_DIR/$entry" ]] && cp -a "$SOURCE_DIR/$entry" "$STAGE_DIR/"
 done
-run chmod +x "$INSTALL_DIR/serverctl.sh" "$INSTALL_DIR/install.sh"
-run find "$INSTALL_DIR" -type f -name '*.sh' -exec chmod 0644 {} \;
-run chmod +x "$INSTALL_DIR/serverctl.sh" "$INSTALL_DIR/install.sh"
+chmod 0755 "$STAGE_DIR/serverctl.sh" "$STAGE_DIR/install.sh"
+find "$STAGE_DIR/lib" "$STAGE_DIR/features" -type f -name '*.sh' -exec chmod 0644 {} \;
 
-log "正在创建命令入口：$BIN_PATH"
-run ln -sf "$INSTALL_DIR/serverctl.sh" "$BIN_PATH"
-
-if [[ -n "$RUN_PROFILE" ]]; then
-  log "正在执行 profile：$RUN_PROFILE"
-  args=(install --profile "$RUN_PROFILE")
-  [[ "$ASSUME_YES" -eq 1 ]] && args+=(--yes)
-  [[ "$DRY_RUN" -eq 1 ]] && args+=(--dry-run)
-  run "$BIN_PATH" "${args[@]}"
-elif [[ "$RUN_MENU" -eq 1 ]]; then
-  log "安装完成，正在打开中文交互菜单。"
-  if [[ "$DRY_RUN" -eq 0 && -t 1 ]]; then
-    sleep 0.2
-    command -v clear >/dev/null 2>&1 && clear || true
-  fi
-  run "$BIN_PATH" menu
+old_dir=""
+if [[ -d "$INSTALL_DIR" ]]; then
+  old_dir="$parent_dir/.server-toolkit-old.$$"
+  mv "$INSTALL_DIR" "$old_dir"
 fi
+if ! mv "$STAGE_DIR" "$INSTALL_DIR"; then
+  [[ -z "$old_dir" || ! -d "$old_dir" ]] || mv "$old_dir" "$INSTALL_DIR"
+  die "替换安装目录失败，旧版本已恢复"
+fi
+STAGE_DIR=""
+ln -sfn "$INSTALL_DIR/serverctl.sh" "$BIN_PATH"
+[[ -z "$old_dir" || ! -d "$old_dir" ]] || rm -rf -- "$old_dir"
 
-[[ -n "$TMP_DIR" && -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
-log "完成。以后可直接运行：sudo serverctl"
+info "安装完成：sudo serverctl"
