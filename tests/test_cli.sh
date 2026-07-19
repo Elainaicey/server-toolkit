@@ -3,8 +3,8 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
-# shellcheck source=../serverctl.sh
-. "$ROOT_DIR/serverctl.sh"
+# shellcheck source=../bin/serverctl
+. "$ROOT_DIR/bin/serverctl"
 
 captured=""
 platform_detect() { :; }

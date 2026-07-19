@@ -3,9 +3,9 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
-# shellcheck source=../lib/core.sh
-. "$ROOT_DIR/lib/core.sh"
-. "$ROOT_DIR/lib/platform.sh"
+# shellcheck source=../src/core/runtime.sh
+. "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/platform.sh"
 
 updates=0
 captured=()
@@ -25,6 +25,17 @@ captured=()
 package_install curl >/dev/null
 [[ "$updates" -eq 0 && "${#captured[@]}" -eq 0 ]] || {
   printf 'FAIL: 已安装软件仍触发了 APT\n' >&2
+  exit 1
+}
+
+systemctl() {
+  if [[ "$1" == "is-active" ]]; then
+    printf 'failed\n'
+    return 3
+  fi
+}
+[[ "$(service_state example.service)" == "failed" ]] || {
+  printf 'FAIL: 非 active 服务状态被错误拼接\n' >&2
   exit 1
 }
 
