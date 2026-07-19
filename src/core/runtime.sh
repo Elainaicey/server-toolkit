@@ -9,9 +9,10 @@ runtime_colors() {
   if [[ "$NO_COLOR" -eq 1 || ! -t 1 ]]; then
     return 0
   fi
-  RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
-  BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m'; MAGENTA=$'\033[0;35m'
-  WHITE=$'\033[0;37m'; MUTED=$'\033[0;90m'; BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
+  # 使用明亮的 ANSI 基础色，兼顾深色终端、低色彩终端和 SSH 会话。
+  RED=$'\033[0;91m'; GREEN=$'\033[0;92m'; YELLOW=$'\033[0;93m'
+  BLUE=$'\033[0;94m'; MAGENTA=$'\033[0;95m'; CYAN=$'\033[0;96m'
+  WHITE=$'\033[0;97m'; MUTED=$'\033[0;90m'; BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
 }
 
 info() { printf '%b[信息]%b %s\n' "$GREEN" "$NC" "$*"; }

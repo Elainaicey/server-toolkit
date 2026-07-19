@@ -1,0 +1,40 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Verify release
+        run: bash scripts/release-check.sh "$GITHUB_REF_NAME"
+      - name: Build source archive
+        run: |
+          version="$(cat VERSION)"
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="server-toolkit-$version/" \
+            -o "dist/server-toolkit-$version.tar.gz" "$GITHUB_SHA"
+          cd dist
+          sha256sum "server-toolkit-$version.tar.gz" > "server-toolkit-$version.tar.gz.sha256"
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(cat VERSION)"
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/server-toolkit-$version.tar.gz" \
+            "dist/server-toolkit-$version.tar.gz.sha256" \
+            --verify-tag \
+            --title "Server Toolkit $version" \
+            --generate-notes

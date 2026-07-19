@@ -21,6 +21,7 @@ Reports should include:
 Changes involving the following areas require explicit confirmation, input validation, failure recovery, and focused tests:
 
 - installer, upgrade and uninstall path ownership;
+- project self-update downloads and version validation;
 - SSH configuration and service restart;
 - UFW and exposed ports;
 - backup manifests and restore targets;

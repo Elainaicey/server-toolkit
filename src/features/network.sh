@@ -122,9 +122,9 @@ EOF
 
 network_set_address_preference() {
   ui_page "IP 地址优先级" "设置 IPv4 优先或恢复系统默认地址选择"
-  ui_item 1 "IPv4 优先"
-  ui_item 2 "恢复系统默认"
-  ui_item 0 "取消"
+  ui_action 1 "IPv4 优先" "action"
+  ui_action 2 "恢复系统默认" "warning"
+  ui_action 0 "取消" "muted"
   local choice action="恢复系统默认地址选择"
   choice="$(read_input "请选择" "0")"
   [[ "$choice" == "1" || "$choice" == "2" ]] || return 0
@@ -152,12 +152,14 @@ network_menu() {
   local choice
   while true; do
     ui_page "网络与端口" "接口、路由、连通性、监听服务与内核网络能力"
+    ui_section "状态与诊断" "primary"
     ui_item 1 "网络概览"
     ui_item 2 "连通性检查"
     ui_item 3 "目标诊断" "DNS、路由、延迟与丢包"
     ui_item 4 "路由表"
     ui_item 5 "网卡流量" "本次开机累计统计"
     ui_item 6 "连接会话" "套接字汇总与远端端点排行"
+    ui_section "端口与协议" "accent"
     ui_item 7 "监听端口"
     ui_item 8 "查询端口"
     ui_item 9 "启用 BBR"

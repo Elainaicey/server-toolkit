@@ -46,6 +46,21 @@ software_remove_docker() {
   package_remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 }
 
+software_update_docker() {
+  if package_installed docker.io && ! package_installed docker-ce; then
+    package_upgrade docker.io
+    return 0
+  fi
+  package_installed docker-ce || { warn "无法识别当前 Docker 的软件包来源。"; return 1; }
+  local packages=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
+  local installed=() package
+  for package in "${packages[@]}"; do
+    package_installed "$package" && installed+=("$package")
+  done
+  ((${#installed[@]} > 0)) || { warn "没有检测到可更新的 Docker 官方组件。"; return 1; }
+  apt_run install --only-upgrade -y "${installed[@]}"
+}
+
 software_install_caddy() {
   info "准备 Caddy 官方仓库。"
   package_install ca-certificates curl gnupg debian-keyring debian-archive-keyring
@@ -65,3 +80,5 @@ software_install_caddy() {
 }
 
 software_remove_caddy() { package_remove caddy; }
+
+software_update_caddy() { package_upgrade caddy; }

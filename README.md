@@ -25,7 +25,7 @@ Server Toolkit 为自主管理的 Linux VPS 提供统一终端入口，覆盖从
 项目不追求无边界地收集脚本，而是遵循以下约束：
 
 - **清晰分层**：系统能力优先于软件与应用，Docker 等独立应用归入应用中心。
-- **单项操作**：软件一次安装或移除一个条目，不提供套餐、全选和隐式依赖组合。
+- **单项操作**：软件一次安装、更新或移除一个条目，不提供套餐、全选和隐式依赖组合。
 - **人工确认**：不存在 `--yes`、profiles 或无人值守系统修改。
 - **副作用透明**：软件安装不会自动开放端口、修改 SSH 或套用网络调优模板。
 - **恢复优先**：配置变更前创建清单化快照；高风险配置先验证，再加载。
@@ -71,7 +71,7 @@ sudo serverctl
 | **网络与端口** | 接口地址、路由与策略规则、DNS、IPv4/IPv6 连通性、目标诊断、网卡流量、连接会话、监听端口、端口进程、BBR 与地址优先级 |
 | **安全中心** | 安全基线、公网监听、UFW 状态与规则、SSH 安全向导、登录事件、Fail2ban 状态与 TLS 证书检查 |
 | **服务与日志** | failed/active 服务、单服务状态与 Journal、启动停止、开机启动、Timer、启动错误、内核警告与项目操作审计 |
-| **软件管理** | 按 ID、名称、分类和说明搜索；查看安装状态；单项安装或移除 66 个常用软件条目 |
+| **软件管理** | 按 ID、名称、分类和说明搜索；查看当前版本、仓库候选版本与更新状态；单项安装、更新或移除 66 个常用软件条目 |
 | **应用与容器** | Web、数据库、缓存与容器服务概览；Docker 容器、镜像、资源、Compose、存储卷、网络和安全清理 |
 | **备份与恢复** | 自动配置快照、手动 `/etc` 文件快照、备份清单检查与单文件恢复 |
 
@@ -93,6 +93,7 @@ serverctl apps                   # 应用与容器中心
 serverctl backups                # 备份与恢复中心
 serverctl about                  # 版本和安装路径
 serverctl version                # 版本号
+sudo serverctl self-update       # 检查并原子更新项目自身
 ```
 
 ### 软件管理
@@ -101,10 +102,11 @@ serverctl version                # 版本号
 serverctl list                   # 完整软件目录
 serverctl list python            # 按关键词查询
 sudo serverctl install jq        # 安装一个软件
+sudo serverctl update jq         # 更新一个已安装软件
 sudo serverctl remove jq         # 移除一个软件
 ```
 
-`install` 与 `remove` 只接受一个软件 ID。所有实际修改仍需人工确认。
+`install`、`update` 与 `remove` 只接受一个软件 ID。软件中心不会批量更新整个系统；所有实际修改仍需人工确认。
 
 ### 操作预览
 
@@ -165,7 +167,7 @@ server-toolkit/
 └── VERSION                      # 唯一版本来源
 ```
 
-完整设计约束与扩展规范见 [`docs/DESIGN.md`](docs/DESIGN.md)，漏洞报告流程见 [`SECURITY.md`](SECURITY.md)。
+完整设计约束与扩展规范见 [`docs/DESIGN.md`](docs/DESIGN.md)，漏洞报告流程见 [`SECURITY.md`](SECURITY.md)，版本发布流程见 [`docs/RELEASE.md`](docs/RELEASE.md)。
 
 ## 支持范围
 
@@ -180,11 +182,19 @@ server-toolkit/
 
 ## 更新
 
-重新运行安装命令即可完成原子升级：
+在控制台中选择“系统管理 → 更新本项目”，或直接运行：
+
+```bash
+sudo serverctl self-update
+```
+
+也可以重新运行安装命令完成原子升级：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/heads/main/install.sh)
 ```
+
+软件中心中的“更新”只更新当前选中的软件，不会升级整个系统。
 
 ## 卸载
 

@@ -192,7 +192,9 @@ system_menu() {
     ui_item 14 "安全清理" "APT 缓存和旧 Journal"
     ui_section "项目"
     ui_item 15 "关于本项目"
-    ui_item 16 "卸载本项目" "程序卸载或彻底清除项目数据"
+    ui_item 16 "检查项目更新" "比较本机与 GitHub 发布版本"
+    ui_item 17 "更新本项目" "使用原子替换安装流程"
+    ui_item 18 "卸载本项目" "程序卸载或彻底清除项目数据"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
@@ -211,7 +213,9 @@ system_menu() {
       13) system_time_sync || true ;;
       14) system_cleanup || true ;;
       15) toolkit_about ;;
-      16) toolkit_uninstall || true ;;
+      16) toolkit_check_update || true ;;
+      17) toolkit_self_update || true ;;
+      18) toolkit_uninstall || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

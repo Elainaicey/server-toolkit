@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+cd "$ROOT_DIR"
+
+version="$(tr -d '[:space:]' < VERSION)"
+tag="${1:-v$version}"
+
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  printf 'FAIL: VERSION 不是有效的语义版本：%s\n' "$version" >&2
+  exit 1
+}
+[[ "$tag" == "v$version" ]] || {
+  printf 'FAIL: 标签 %s 与 VERSION %s 不一致\n' "$tag" "$version" >&2
+  exit 1
+}
+grep -Fqx "## $version" CHANGELOG.md || {
+  printf 'FAIL: CHANGELOG.md 缺少 %s 发布章节\n' "$version" >&2
+  exit 1
+}
+
+bash scripts/check.sh
+printf 'PASS: release %s\n' "$tag"

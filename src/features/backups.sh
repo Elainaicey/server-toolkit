@@ -43,9 +43,11 @@ backups_menu() {
   local choice
   while true; do
     ui_page "备份与恢复" "浏览配置快照并按清单恢复单个文件"
+    ui_section "查看" "primary"
     ui_item 1 "列出备份"
-    ui_item 2 "创建配置快照" "手动备份一个 /etc 配置文件"
     ui_item 3 "查看备份内容"
+    ui_section "创建与恢复" "accent"
+    ui_item 2 "创建配置快照" "手动备份一个 /etc 配置文件"
     ui_item 4 "恢复一个文件"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"

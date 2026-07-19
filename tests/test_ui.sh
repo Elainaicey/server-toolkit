@@ -10,9 +10,11 @@ SERVERCTL_VERSION="0.1.0"
 NO_COLOR=1
 runtime_locale
 runtime_colors
-output="$(ui_banner; ui_header "测试中心"; ui_item 1 "测试操作" "测试说明"; ui_note "测试提示")"
+output="$(ui_banner; ui_header "测试中心"; ui_item 1 "测试操作" "测试说明"; ui_panel_begin "信息"; ui_panel_kv "版本" "0.1.0"; ui_panel_end; ui_action 2 "更新" "warning"; ui_note "测试提示")"
 grep -q 'SERVER TOOLKIT' <<<"$output" || { printf 'FAIL: UI 横幅缺失\n' >&2; exit 1; }
 grep -q '测试操作' <<<"$output" || { printf 'FAIL: UI 菜单项缺失\n' >&2; exit 1; }
+grep -q '╭─ 信息' <<<"$output" || { printf 'FAIL: UI 信息面板缺失\n' >&2; exit 1; }
+grep -q '\[2\].*更新' <<<"$output" || { printf 'FAIL: UI 语义操作缺失\n' >&2; exit 1; }
 [[ "$(ui_display_width "系统")" -eq 4 ]] || { printf 'FAIL: 中文显示宽度计算错误\n' >&2; exit 1; }
 progress="$(ui_progress "内存" 50 100 MiB)"
 grep -q '50%' <<<"$progress" || { printf 'FAIL: 资源进度条计算错误\n' >&2; exit 1; }

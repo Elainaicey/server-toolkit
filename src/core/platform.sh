@@ -27,6 +27,22 @@ platform_detect() {
 
 package_installed() { dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q '^install ok installed$'; }
 
+package_installed_version() {
+  dpkg-query -W -f='${Version}' "$1" 2>/dev/null || true
+}
+
+package_candidate_version() {
+  apt-cache policy "$1" 2>/dev/null | awk '/^[[:space:]]*Candidate:/ {print $2; exit}'
+}
+
+package_has_update() {
+  local package="$1" installed candidate
+  installed="$(package_installed_version "$package")"
+  candidate="$(package_candidate_version "$package")"
+  [[ -n "$installed" && -n "$candidate" && "$candidate" != "(none)" ]] || return 1
+  dpkg --compare-versions "$candidate" gt "$installed"
+}
+
 package_wait_for_lock() {
   command_exists fuser || return 0
   local waited=0
@@ -61,6 +77,18 @@ package_remove() {
   ((${#installed[@]} > 0)) || { info "软件未安装。"; return 0; }
   printf -v display '%s ' "${installed[@]}"; info "将移除系统包：${display% }"
   apt_run remove -y "${installed[@]}"
+}
+
+package_upgrade() {
+  local package="$1"
+  package_installed "$package" || { warn "$package 尚未安装。"; return 1; }
+  package_update_index
+  if ! package_has_update "$package"; then
+    info "$package 已经是软件仓库中的最新版本。"
+    return 0
+  fi
+  info "将更新系统包：$package"
+  apt_run install --only-upgrade -y "$package"
 }
 
 package_upgradable_count() { apt list --upgradable 2>/dev/null | sed '1d' | grep -c . || true; }

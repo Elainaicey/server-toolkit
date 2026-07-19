@@ -226,13 +226,16 @@ security_menu() {
   local choice
   while true; do
     ui_page "安全中心" "检查暴露面，管理主机防火墙与 SSH 登录安全"
+    ui_section "评估与观察" "primary"
     ui_item 1 "安全基线检查" "防火墙、SSH、UID 0、Fail2ban 与重启"
     ui_item 2 "公网监听端口" "识别监听所有地址的服务"
     ui_item 3 "UFW 状态"
+    ui_section "主机防护" "accent"
     ui_item 4 "启用基础防火墙"
     ui_item 5 "放行 TCP 端口"
     ui_item 6 "删除端口规则"
     ui_item 7 "SSH 安全向导"
+    ui_section "事件与证书" "primary"
     ui_item 8 "SSH 登录事件"
     ui_item 9 "Fail2ban 状态"
     ui_item 10 "TLS 证书检查" "签发者、有效期、指纹与主机名"

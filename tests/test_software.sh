@@ -21,4 +21,12 @@ software_install_docker >/dev/null 2>&1
   exit 1
 }
 
+package_installed() { [[ "$1" == "docker.io" ]]; }
+package_upgrade() { removed="upgrade:$1"; }
+software_update_docker >/dev/null
+[[ "$removed" == "upgrade:docker.io" ]] || {
+  printf 'FAIL: 系统仓库 Docker 没有沿用其现有来源更新\n' >&2
+  exit 1
+}
+
 printf 'PASS: software\n'

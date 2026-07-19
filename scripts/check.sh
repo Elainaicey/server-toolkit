@@ -34,7 +34,13 @@ awk -F '|' '
 printf '[check] CLI 冒烟测试\n'
 [[ "$(bash bin/serverctl version)" == "Server Toolkit 0.1.0" ]]
 bash bin/serverctl --help | grep -q '一次只接受一个软件 ID'
+bash bin/serverctl --help | grep -q 'update ID'
 bash install.sh --help | grep -q 'Server Toolkit 安装器'
 bash scripts/install.sh --help | grep -q -- '--purge-data'
+
+printf '[check] 发布元数据\n'
+version="$(tr -d '[:space:]' < VERSION)"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+grep -Fqx "## $version" CHANGELOG.md
 
 printf '[check] 全部通过\n'

@@ -40,6 +40,6 @@ grep -q '^  系统              Debian GNU/Linux 13' <<<"$output" || {
   exit 1
 }
 grep -q '46%  453/967 MiB' <<<"$output" || { printf 'FAIL: 内存进度计算错误\n' >&2; exit 1; }
-grep -q 'Docker            active · 2 个运行中' <<<"$output" || { printf 'FAIL: Docker 状态布局错误\n' >&2; exit 1; }
+grep -q 'Docker            ● active · 2 个运行中' <<<"$output" || { printf 'FAIL: Docker 状态布局错误\n' >&2; exit 1; }
 
 printf 'PASS: dashboard\n'

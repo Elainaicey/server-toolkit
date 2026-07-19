@@ -8,6 +8,9 @@ required=(
   bin/serverctl
   config/software.tsv
   scripts/install.sh
+  scripts/release-check.sh
+  .github/workflows/release.yml
+  docs/RELEASE.md
   src/core/runtime.sh
   src/core/catalog.sh
   src/features/dashboard.sh

@@ -37,16 +37,20 @@ services_select() {
     enabled="$(systemctl is-enabled "$service" 2>/dev/null || true)"
     enabled="${enabled:-disabled}"
     ui_page "服务管理 / $service" "状态、日志、生命周期与开机启动"
-    ui_kv "状态" "$state"
-    ui_kv "开机启动" "$enabled"
-    ui_item 1 "查看状态"
-    ui_item 2 "查看日志"
-    ui_item 3 "启动"
-    ui_item 4 "停止"
-    ui_item 5 "重启"
-    ui_item 6 "启用开机启动"
-    ui_item 7 "禁用开机启动"
-    ui_item 0 "返回"
+    ui_panel_begin "服务信息"
+    if [[ "$state" == "active" ]]; then ui_panel_kv "状态" "● $state" "$GREEN"; else ui_panel_kv "状态" "● $state" "$YELLOW"; fi
+    ui_panel_kv "开机启动" "$enabled"
+    ui_panel_end
+    ui_section "查看" "primary"
+    ui_action 1 "查看状态" "action"
+    ui_action 2 "查看日志" "action"
+    ui_section "生命周期" "accent"
+    ui_action 3 "启动" "success"
+    ui_action 4 "停止" "danger"
+    ui_action 5 "重启" "warning"
+    ui_action 6 "启用开机启动" "success"
+    ui_action 7 "禁用开机启动" "danger"
+    ui_action 0 "返回" "muted"
     action="$(read_input "请选择" "0")"
     case "$action" in
       1) systemctl status "$service" --no-pager || true; pause ;;
@@ -85,9 +89,11 @@ services_menu() {
   local choice
   while true; do
     ui_page "服务与日志" "systemd 单元、Timer、Journal 与项目操作审计"
+    ui_section "服务状态" "primary"
     ui_item 1 "失败的服务" "优先处理异常单元"
     ui_item 2 "运行中的服务"
     ui_item 3 "管理一个服务" "状态、日志、启动、停止与开机启动"
+    ui_section "日志与计划" "accent"
     ui_item 4 "启动错误" "本次开机的 error 级别 Journal"
     ui_item 5 "systemd Timer"
     ui_item 6 "Journal 与内核警告"

@@ -12,6 +12,9 @@ SOFTWARE_CATALOG="$CONFIG_DIR/software.tsv"
 runtime_colors
 
 package_installed() { return 1; }
+package_installed_version() { :; }
+package_candidate_version() { printf '1.0.0'; }
+package_has_update() { return 1; }
 command_exists() { return 1; }
 # shellcheck source=../src/core/catalog.sh
 . "$ROOT_DIR/src/core/catalog.sh"
@@ -45,5 +48,15 @@ catalog_install jq >/dev/null
 [[ "$captured" == "package:jq" ]] || die "普通软件没有精确分发到单个包"
 catalog_install docker >/dev/null
 [[ "$captured" == "handler:docker" ]] || die "Docker 专用安装器分发错误"
+
+package_installed() { [[ "$1" == "jq" ]]; }
+package_installed_version() { printf '1.0.0'; }
+package_candidate_version() { printf '1.1.0'; }
+package_has_update() { [[ "$1" == "jq" ]]; }
+package_invalidate_index() { :; }
+package_update_index() { :; }
+package_upgrade() { captured="update:$1"; }
+catalog_update jq >/dev/null
+[[ "$captured" == "update:jq" ]] || die "普通软件没有分发到单项更新流程"
 
 printf 'PASS: catalog\n'

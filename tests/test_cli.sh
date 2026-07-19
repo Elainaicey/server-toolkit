@@ -9,6 +9,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)
 captured=""
 platform_detect() { :; }
 catalog_install() { captured="$1"; }
+catalog_update() { captured="update:$1"; }
 catalog_print() { captured="list:${1:-}"; }
 toolkit_uninstall() { captured="uninstall"; }
 
@@ -17,6 +18,9 @@ main install jq --dry-run
 
 main list python
 [[ "$captured" == "list:python" ]] || { printf 'FAIL: list 参数解析错误\n' >&2; exit 1; }
+
+main update jq
+[[ "$captured" == "update:jq" ]] || { printf 'FAIL: update 参数解析错误\n' >&2; exit 1; }
 
 if (main install curl jq >/dev/null 2>&1); then
   printf 'FAIL: CLI 接受了多个软件 ID\n' >&2

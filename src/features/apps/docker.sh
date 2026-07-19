@@ -66,12 +66,14 @@ docker_container_action() {
   container="$(read_input "容器名称或 ID" "")"; [[ -n "$container" ]] || return 0
   docker inspect "$container" >/dev/null 2>&1 || { warn "没有找到容器：$container"; return 1; }
   ui_page "容器 / $container" "日志、检查与生命周期操作"
-  ui_item 1 "查看日志"
-  ui_item 2 "检查详情"
-  ui_item 3 "启动"
-  ui_item 4 "停止"
-  ui_item 5 "重启"
-  ui_item 0 "返回"
+  ui_section "查看" "primary"
+  ui_action 1 "查看日志" "action"
+  ui_action 2 "检查详情" "action"
+  ui_section "生命周期" "accent"
+  ui_action 3 "启动" "success"
+  ui_action 4 "停止" "danger"
+  ui_action 5 "重启" "warning"
+  ui_action 0 "返回" "muted"
   action="$(read_input "请选择" "0")"
   case "$action" in
     1) docker logs --tail 150 "$container" 2>&1 ;;
@@ -95,13 +97,15 @@ docker_menu() {
   while true; do
     ui_page "应用与容器 / Docker" "容器生命周期、资源、Compose、网络与存储"
     if command_exists docker; then ui_kv "服务" "$(service_state docker.service)"; else ui_empty "Docker 未安装"; fi
-    printf '%b发布容器端口可能绕过 UFW；公网服务请同时检查 Docker 防火墙规则。%b\n\n' "$DIM" "$NC"
+    ui_context "发布容器端口可能绕过 UFW；公网服务请同时检查 Docker 防火墙规则。"
+    ui_section "观察" "primary"
     ui_item 1 "Docker 概览"
     ui_item 2 "全部容器"
     ui_item 3 "镜像"
     ui_item 4 "容器资源"
     ui_item 5 "存储卷与网络"
     ui_item 6 "Compose 项目"
+    ui_section "操作" "accent"
     ui_item 7 "操作一个容器"
     ui_item 8 "安全清理"
     ui_item 9 "安装 Docker"
