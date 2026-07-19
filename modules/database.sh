@@ -2,6 +2,7 @@
 
 database_install_redis() {
   log_step "安装 Redis"
+  pkg_update_index
   [[ "$OS_FAMILY" == "debian" ]] && pkg_install redis-server || pkg_install redis
   systemctl list-unit-files | grep -q '^redis-server\.service' && run systemctl enable --now redis-server || true
   systemctl list-unit-files | grep -q '^redis\.service' && run systemctl enable --now redis || true
@@ -10,6 +11,7 @@ database_install_redis() {
 
 database_install_postgresql() {
   log_step "安装 PostgreSQL"
+  pkg_update_index
   if [[ "$OS_FAMILY" == "debian" ]]; then
     pkg_install postgresql postgresql-contrib
   else
@@ -21,6 +23,7 @@ database_install_postgresql() {
 
 database_install_mariadb() {
   log_step "安装 MariaDB"
+  pkg_update_index
   [[ "$OS_FAMILY" == "debian" ]] && pkg_install mariadb-server mariadb-client || pkg_install mariadb-server mariadb
   systemctl list-unit-files | grep -q '^mariadb\.service' && run systemctl enable --now mariadb || true
   log_warn "安装后建议执行 mysql_secure_installation。"
@@ -28,6 +31,7 @@ database_install_mariadb() {
 
 database_install_sqlite() {
   log_step "安装 SQLite"
+  pkg_update_index
   pkg_install sqlite3
 }
 

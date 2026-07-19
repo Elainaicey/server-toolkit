@@ -6,38 +6,27 @@ software_center_menu() {
   while true; do
     clear_screen
     ui_panel_start "软件安装中心"
-    ui_panel_line "[01] 基础工具        curl/wget/git/jq/vim/unzip/tmux"
-    ui_panel_line "[02] 现代 CLI        ripgrep/fd/bat/fzf/tree/neovim"
-    ui_panel_line "[03] 编译依赖/库     gcc/make/cmake/pkg-config/ssl/ffi/zlib"
-    ui_panel_line "[04] 开发运行时      Python/Node.js/Go/Rust/Java/PHP"
+    ui_panel_line "[01] 按单项选择      只安装真正需要的软件（推荐）"
+    ui_panel_line "[02] 开发运行时      Python/Node.js/Go/Rust/Java/PHP"
+    ui_panel_line "[03] 常用集合        明确选择后才会整组安装"
     ui_panel_rule
-    ui_panel_line "[05] 容器环境        Docker/Compose"
-    ui_panel_line "[06] Web 环境        Caddy/Nginx/Certbot"
-    ui_panel_line "[07] 数据库/缓存     Redis/PostgreSQL/MariaDB/SQLite"
-    ui_panel_line "[08] 监控排障        sysstat/iotop/iftop/ncdu/tcpdump"
-    ui_panel_rule
-    ui_panel_line "[09] 备份同步        rclone/restic/borgbackup/rsync"
-    ui_panel_line "[10] 安全工具        fail2ban/防火墙/openssl"
-    ui_panel_line "[11] 代理节点依赖    socat/cron/iptables/nftables/qrencode"
-    ui_panel_line "[12] 自定义包名安装"
+    ui_panel_line "[04] Docker 环境     官方仓库与 Compose"
+    ui_panel_line "[05] Web 服务        Caddy/Nginx"
+    ui_panel_line "[06] 数据库/缓存     Redis/PostgreSQL/MariaDB/SQLite"
+    ui_panel_line "[07] 自定义包名      直接使用系统包名"
     ui_panel_line "[00] 返回"
     ui_panel_end
     printf '\n'
     local choice
     choice="$(ask_input "请选择分类" "00")"
     case "$choice" in
-      1|01) pkg_update_index; software_install_basic ;;
-      2|02) pkg_update_index; tools_install_modern_cli ;;
-      3|03) pkg_update_index; software_install_build_libs ;;
-      4|04) software_runtime_menu ;;
-      5|05) docker_menu ;;
-      6|06) web_menu ;;
-      7|07) database_menu ;;
-      8|08) pkg_update_index; monitor_install_tools ;;
-      9|09) pkg_update_index; tools_install_backup_tools ;;
-      10) pkg_update_index; tools_install_security_tools ;;
-      11) pkg_update_index; software_install_proxy_deps ;;
-      12) software_install_custom ;;
+      1|01) catalog_menu ;;
+      2|02) software_runtime_menu ;;
+      3|03) software_bundle_menu ;;
+      4|04) docker_menu ;;
+      5|05) web_menu ;;
+      6|06) database_menu ;;
+      7|07) software_install_custom ;;
       0|00) break ;;
       *) log_warn "未知选项" ;;
     esac
@@ -45,31 +34,54 @@ software_center_menu() {
   done
 }
 
+software_bundle_menu() {
+  clear_screen
+  ui_panel_start "常用软件集合"
+  ui_panel_line "集合会一次安装多个软件；如果只需要其中一个，请使用单项安装。"
+  ui_panel_rule
+  ui_panel_line "[01] 基础工具      [02] 现代 CLI"
+  ui_panel_line "[03] 编译依赖      [04] 网络诊断"
+  ui_panel_line "[05] 监控排障      [06] 备份同步"
+  ui_panel_line "[07] 安全工具      [08] 代理常用依赖"
+  ui_panel_line "[00] 返回"
+  ui_panel_end
+  printf '\n'
+  local choice bundle=""
+  choice="$(ask_input "请选择" "00")"
+  case "$choice" in
+    1|01) bundle="basic" ;;
+    2|02) bundle="cli" ;;
+    3|03) bundle="build" ;;
+    4|04) bundle="network" ;;
+    5|05) bundle="monitor" ;;
+    6|06) bundle="backup" ;;
+    7|07) bundle="security" ;;
+    8|08) bundle="proxy" ;;
+    0|00) return 0 ;;
+    *) log_warn "未知选项：$choice"; return 1 ;;
+  esac
+  if ask_yes_no "确认安装整个 '$bundle' 集合？" "N"; then
+    pkg_update_index
+    if ! catalog_install_bundle "$bundle"; then
+      log_warn "集合中有软件安装失败，其余已安装项目不会回滚。"
+    fi
+  fi
+  return 0
+}
+
 software_install_basic() {
   log_step "安装基础工具"
-  if [[ "$OS_FAMILY" == "debian" ]]; then
-    pkg_install curl wget git jq vim unzip zip tar gzip xz-utils htop tmux lsof psmisc net-tools iproute2 dnsutils sudo bash-completion gnupg rsync
-  else
-    pkg_install curl wget git jq vim-enhanced unzip zip tar gzip xz htop tmux lsof psmisc net-tools iproute bind-utils sudo bash-completion gnupg2 rsync
-  fi
+  catalog_install_bundle basic || true
 }
 
 software_install_build_libs() {
   log_step "安装编译依赖与常用库"
-  if [[ "$OS_FAMILY" == "debian" ]]; then
-    pkg_install build-essential make gcc g++ pkg-config autoconf automake libtool cmake ninja-build libssl-dev libffi-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev liblzma-dev
-  else
-    pkg_install gcc gcc-c++ make pkgconf-pkg-config autoconf automake libtool cmake ninja-build openssl-devel libffi-devel zlib-devel bzip2-devel readline-devel sqlite-devel xz-devel
-  fi
+  catalog_install_bundle build || true
 }
 
 software_install_proxy_deps() {
   log_step "安装代理节点常用依赖"
-  if [[ "$OS_FAMILY" == "debian" ]]; then
-    pkg_install curl wget socat cron openssl ca-certificates iptables nftables qrencode unzip tar gzip jq
-  else
-    pkg_install curl wget socat cronie openssl ca-certificates iptables nftables qrencode unzip tar gzip jq
-  fi
+  catalog_install_bundle proxy || true
 }
 
 software_install_custom() {
@@ -87,35 +99,24 @@ software_runtime_menu() {
   while true; do
     clear_screen
     ui_panel_start "开发运行时"
-    ui_panel_line "[01] Python 3 / pip / venv / pipx"
-    ui_panel_line "[02] Node.js / npm"
-    ui_panel_line "[03] Go"
-    ui_panel_line "[04] Rust / Cargo"
-    ui_panel_line "[05] Java OpenJDK"
-    ui_panel_line "[06] PHP-FPM"
+    ui_panel_line "[01] 按单项选择运行时（推荐）"
     ui_panel_rule
-    ui_panel_line "[07] 全部安装"
+    ui_panel_line "[02] Python 完整环境    [03] Node.js + npm"
+    ui_panel_line "[04] Go                 [05] Rust + Cargo"
+    ui_panel_line "[06] Java OpenJDK       [07] PHP + PHP-FPM"
     ui_panel_line "[00] 返回"
     ui_panel_end
     printf '\n'
     local choice
     choice="$(ask_input "请选择" "00")"
     case "$choice" in
-      1|01) pkg_update_index; install_python_stack ;;
-      2|02) pkg_update_index; install_node_stack ;;
-      3|03) pkg_update_index; install_go_stack ;;
-      4|04) pkg_update_index; install_rust_stack ;;
-      5|05) pkg_update_index; install_java_stack ;;
-      6|06) pkg_update_index; install_php_stack ;;
-      7|07)
-        pkg_update_index
-        install_python_stack
-        install_node_stack
-        install_go_stack
-        install_rust_stack
-        install_java_stack
-        install_php_stack
-        ;;
+      1|01) catalog_category_menu runtime ;;
+      2|02) pkg_update_index; install_python_stack ;;
+      3|03) pkg_update_index; install_node_stack ;;
+      4|04) pkg_update_index; install_go_stack ;;
+      5|05) pkg_update_index; install_rust_stack ;;
+      6|06) pkg_update_index; install_java_stack ;;
+      7|07) pkg_update_index; install_php_stack ;;
       0|00) break ;;
       *) log_warn "未知选项" ;;
     esac

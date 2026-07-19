@@ -15,9 +15,17 @@ firewall_install_backend() {
   local backend
   backend="$(firewall_detect_backend)"
   case "$backend" in
-    ufw) command_exists ufw || pkg_install ufw ;;
+    ufw)
+      if ! command_exists ufw; then
+        pkg_update_index
+        pkg_install_exact ufw
+      fi
+      ;;
     firewalld)
-      command_exists firewall-cmd || pkg_install firewalld
+      if ! command_exists firewall-cmd; then
+        pkg_update_index
+        pkg_install_exact firewalld
+      fi
       systemctl list-unit-files | grep -q '^firewalld\.service' && run systemctl enable --now firewalld || true
       ;;
   esac
@@ -26,13 +34,38 @@ firewall_install_backend() {
 
 firewall_allow_port() {
   local port="$1"
-  [[ "$port" =~ ^[0-9]+$ ]] || { log_warn "端口无效：$port"; return 0; }
+  valid_port "$port" || { log_warn "端口无效：$port（有效范围 1-65535）"; return 1; }
   local backend
   backend="$(firewall_detect_backend)"
   firewall_install_backend
   case "$backend" in
     ufw) run ufw allow "${port}/tcp" ;;
     firewalld) run firewall-cmd --permanent --add-port="${port}/tcp"; run firewall-cmd --reload ;;
+  esac
+}
+
+# 供 Web/SSH 等模块联动使用：只调整已经存在的防火墙，不为此额外安装防火墙。
+firewall_allow_port_if_present() {
+  local port="$1"
+  valid_port "$port" || { log_warn "端口无效：$port（有效范围 1-65535）"; return 1; }
+  local backend
+  backend="$(firewall_detect_backend)"
+  case "$backend" in
+    ufw)
+      if command_exists ufw; then
+        run ufw allow "${port}/tcp"
+      else
+        log_info "未安装 UFW，跳过端口规则；如需防火墙请进入防火墙模块。"
+      fi
+      ;;
+    firewalld)
+      if command_exists firewall-cmd; then
+        run firewall-cmd --permanent --add-port="${port}/tcp"
+        run firewall-cmd --reload
+      else
+        log_info "未安装 firewalld，跳过端口规则；如需防火墙请进入防火墙模块。"
+      fi
+      ;;
   esac
 }
 
@@ -73,10 +106,12 @@ firewall_menu() {
   case "$choice" in
     1|01) firewall_enable_basic "$(ask_input "额外 TCP 端口，逗号分隔" "")" ;;
     2|02)
-      local ports p
+      local ports p ports_arr=()
       ports="$(ask_input "TCP 端口，逗号分隔" "80,443")"
       IFS=',' read -r -a ports_arr <<< "${ports// /}"
-      for p in "${ports_arr[@]}"; do firewall_allow_port "$p"; done
+      for p in "${ports_arr[@]}"; do
+        firewall_allow_port "$p" || true
+      done
       ;;
     0|00) return 0 ;;
   esac

@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-SERVERCTL_VERSION="0.1.0"
+SERVERCTL_VERSION="0.2.0"
 SOURCE_PATH="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE_PATH" ]]; do
   SOURCE_DIR="$(cd -P -- "$(dirname -- "$SOURCE_PATH")" >/dev/null 2>&1 && pwd)"
@@ -20,6 +20,7 @@ ORIGINAL_ARGS=("$@")
 . "$ROOT_DIR/lib/backup.sh"
 . "$ROOT_DIR/lib/detect.sh"
 . "$ROOT_DIR/lib/package.sh"
+. "$ROOT_DIR/lib/catalog.sh"
 
 for module in "$ROOT_DIR"/modules/*.sh; do
   # shellcheck source=/dev/null
@@ -34,7 +35,10 @@ Server Toolkit v${SERVERCTL_VERSION}
   serverctl                         打开中文交互菜单
   serverctl menu                    打开中文交互菜单
   serverctl detect                  系统检测
+  serverctl doctor                  运行环境与项目完整性自检
   serverctl report                  生成 /root/server-report.txt
+  serverctl list [分类/关键词]      查看可独立安装的软件目录
+  serverctl install ITEM...         精确安装一个或多个软件项
   serverctl install --profile NAME  执行无人值守 profile
   serverctl base                    基础初始化
   serverctl system                  系统设置中心
@@ -65,6 +69,8 @@ Server Toolkit v${SERVERCTL_VERSION}
   -h, --help            查看帮助
 
 说明：
+  serverctl list runtime 可查看运行时分类，serverctl install go 只安装 Go。
+  serverctl install curl jq --dry-run 可先预览精确安装动作。
   serverctl install --profile proxy 是无人值守模式，会直接按 profile 执行。
   如果你想要交互选择安装内容，请运行 serverctl 或 serverctl menu。
 
@@ -104,7 +110,9 @@ run_profile() {
 
   pkg_update_index
   [[ "${PROFILE_UPGRADE_SYSTEM:-0}" -eq 1 ]] && pkg_upgrade_system
-  base_install_core
+  # 兼容旧的自定义 profile：未声明时仍执行原来的基础工具安装。
+  # 内置 profile 均显式设为 0，只安装各自列出的软件和模块。
+  [[ "${PROFILE_INSTALL_BASE:-1}" -eq 1 ]] && base_install_core
   [[ -n "${PROFILE_HOSTNAME:-}" ]] && system_set_hostname "$PROFILE_HOSTNAME"
   [[ "${PROFILE_AUTO_UPDATES:-0}" -eq 1 ]] && base_enable_auto_updates
   [[ -n "${PROFILE_TIMEZONE:-}" ]] && base_set_timezone "$PROFILE_TIMEZONE"
@@ -121,12 +129,13 @@ run_profile() {
     network_apply_tcp_profile "$PROFILE_TCP_PROFILE"
   fi
 
-  if [[ "${PROFILE_SSH_HARDEN:-0}" -eq 1 ]]; then
-    ssh_apply_profile_hardening "${PROFILE_SSH_PORT:-}" "${PROFILE_DISABLE_PASSWORD:-0}" "${PROFILE_DISABLE_ROOT:-0}"
-  fi
-
   if [[ "${PROFILE_FIREWALL:-0}" -eq 1 ]]; then
     firewall_enable_basic "${PROFILE_OPEN_PORTS:-}"
+  fi
+
+  # 先让基础防火墙保留当前 SSH 端口，再修改 SSH；SSH 模块会为新端口追加规则。
+  if [[ "${PROFILE_SSH_HARDEN:-0}" -eq 1 ]]; then
+    ssh_apply_profile_hardening "${PROFILE_SSH_PORT:-}" "${PROFILE_DISABLE_PASSWORD:-0}" "${PROFILE_DISABLE_ROOT:-0}"
   fi
 
   if [[ -n "${PROFILE_PACKAGES:-}" ]]; then
@@ -134,7 +143,7 @@ run_profile() {
     local old_ifs="$IFS"
     IFS=' ' read -r -a profile_pkgs <<< "$PROFILE_PACKAGES"
     IFS="$old_ifs"
-    pkg_install "${profile_pkgs[@]}"
+    pkg_install_exact "${profile_pkgs[@]}"
   fi
 
   local profile_modules=()
@@ -274,6 +283,17 @@ uninstall_toolkit() {
     return 0
   fi
 
+  if [[ "$scope" != "entry" && -d "$install_dir" ]]; then
+    path_is_safe_managed_target "$install_dir" || die "拒绝删除不安全的安装目录：$install_dir"
+    [[ -f "$install_dir/serverctl.sh" && -d "$install_dir/lib" && -d "$install_dir/modules" ]] || die "目录不像有效的 Server Toolkit 安装，拒绝删除：$install_dir"
+  fi
+  if [[ "$scope" == "logs" || "$scope" == "all" ]]; then
+    path_is_safe_managed_target "$LOG_DIR" || die "拒绝删除不安全的日志目录：$LOG_DIR"
+  fi
+  if [[ "$scope" == "all" ]]; then
+    path_is_safe_managed_target "$BACKUP_ROOT" || die "拒绝删除不安全的备份目录：$BACKUP_ROOT"
+  fi
+
   if [[ -e "$command_path" || -L "$command_path" ]]; then
     if [[ -z "$resolved_command" || "$resolved_command" == "$resolved_script" || "$resolved_command" == "$install_dir/serverctl.sh" ]]; then
       run rm -f "$command_path"
@@ -338,7 +358,9 @@ interactive_menu() {
 
 main() {
   local cmd="menu"
-  local args=()
+  local command_seen=0
+  local global_args=()
+  local command_args=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -h|--help|help)
@@ -347,38 +369,60 @@ main() {
         ;;
       --profile)
         [[ -n "${2:-}" ]] || die "--profile requires a value"
-        args+=("$1" "$2")
+        global_args+=("$1" "$2")
         shift 2
         ;;
       --yes|-y|--dry-run|--skip-update|--upgrade|--enable-bbr|--no-ssh|--purge|--no-color)
-        args+=("$1")
+        global_args+=("$1")
         shift
         ;;
       --*)
-        args+=("$1")
+        global_args+=("$1")
         shift
         ;;
       *)
-        cmd="$1"
+        if [[ "$command_seen" -eq 0 ]]; then
+          cmd="$1"
+          command_seen=1
+        else
+          command_args+=("$1")
+        fi
         shift
-        args+=("$@")
-        break
         ;;
     esac
   done
 
-  toolkit_parse_global_args "${args[@]}"
+  toolkit_parse_global_args "${global_args[@]}"
   toolkit_init_runtime
 
   case "$cmd" in
     -h|--help|help) usage ;;
     menu) interactive_menu ;;
     detect) detect_system; print_detection_summary ;;
+    doctor) run_doctor ;;
     report) require_root; detect_system; generate_report ;;
+    list|catalog)
+      detect_system
+      catalog_print "${command_args[0]:-}"
+      ;;
     install)
-      [[ -n "${OPT_PROFILE:-}" ]] || die "用法：serverctl install --profile NAME"
-      load_profile "$OPT_PROFILE"
-      run_profile
+      if [[ -n "${OPT_PROFILE:-}" ]]; then
+        ((${#command_args[@]} == 0)) || die "--profile 不能与软件项同时使用"
+        load_profile "$OPT_PROFILE"
+        run_profile
+      elif ((${#command_args[@]} > 0)); then
+        require_root
+        detect_system
+        catalog_validate_items "${command_args[@]}" || die "软件项校验失败，未刷新软件源，也未执行安装。"
+        if catalog_any_missing "${command_args[@]}"; then
+          pkg_update_index
+        fi
+        catalog_install_items "${command_args[@]}"
+      else
+        require_root
+        detect_system
+        software_center_menu
+      fi
       ;;
     base) require_root; detect_system; base_menu ;;
     system) require_root; detect_system; system_settings_menu ;;
@@ -399,4 +443,6 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

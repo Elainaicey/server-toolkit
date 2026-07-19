@@ -50,7 +50,14 @@ network_enable_bbr() {
   log_step "启用 BBR"
   local available
   available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
-  [[ "$available" == *bbr* ]] || log_warn "当前内核未显示支持 BBR：${available:-未知}"
+  if [[ "$available" != *bbr* ]] && command_exists modprobe; then
+    run modprobe tcp_bbr || true
+    [[ "$DRY_RUN" -eq 1 ]] || available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+  fi
+  if [[ "$DRY_RUN" -ne 1 && "$available" != *bbr* ]]; then
+    log_warn "当前内核不支持或无法加载 BBR，未写入配置：${available:-未知}"
+    return 1
+  fi
   backup_file /etc/sysctl.d/98-server-toolkit-bbr.conf
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log_info "[DRY-RUN] 写入 /etc/sysctl.d/98-server-toolkit-bbr.conf"
@@ -131,7 +138,7 @@ network_menu() {
       1|01) network_show; pause ;;
       2|02) network_set_ip_preference ipv4; pause ;;
       3|03) network_set_ip_preference ipv6; pause ;;
-      4|04) network_enable_bbr; pause ;;
+      4|04) network_enable_bbr || true; pause ;;
       5|05) network_apply_tcp_profile normal; pause ;;
       6|06) network_apply_tcp_profile proxy; pause ;;
       7|07) network_apply_tcp_profile high; pause ;;

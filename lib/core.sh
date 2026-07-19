@@ -99,6 +99,24 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+path_is_safe_managed_target() {
+  local path="${1:-}"
+  [[ "$path" == /* ]] || return 1
+  [[ "$path" != *'/../'* && "$path" != */.. && "$path" != *'/./'* && "$path" != */. ]] || return 1
+  case "$path" in
+    /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
+      return 1
+      ;;
+  esac
+  # 至少包含两级路径，例如 /opt/server-toolkit。
+  [[ "${path#/}" == */* ]]
+}
+
+valid_port() {
+  local port="${1:-}"
+  [[ "$port" =~ ^[0-9]+$ ]] && (( 10#$port >= 1 && 10#$port <= 65535 ))
+}
+
 require_root() {
   [[ "${EUID}" -eq 0 ]] && return 0
   if command_exists sudo; then

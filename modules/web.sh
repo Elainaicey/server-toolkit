@@ -14,29 +14,44 @@ web_install_stack() {
     caddy)
       log_step "安装 Caddy"
       if [[ "$OS_FAMILY" == "debian" ]]; then
+        pkg_update_index
         pkg_install debian-keyring debian-archive-keyring apt-transport-https curl gnupg
         if [[ "$DRY_RUN" -eq 1 ]]; then
           log_info "[DRY-RUN] 配置 Caddy 官方仓库"
         else
-          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' -o /tmp/caddy-stable.gpg.key || { pkg_install caddy; return 0; }
-          gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg /tmp/caddy-stable.gpg.key || { rm -f /tmp/caddy-stable.gpg.key; pkg_install caddy; return 0; }
-          rm -f /tmp/caddy-stable.gpg.key
-          curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' -o /etc/apt/sources.list.d/caddy-stable.list || { pkg_install caddy; return 0; }
-          chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg /etc/apt/sources.list.d/caddy-stable.list
+          local caddy_key_tmp caddy_keyring_tmp caddy_list_tmp
+          caddy_key_tmp="$(mktemp)"
+          caddy_keyring_tmp="$(mktemp)"
+          caddy_list_tmp="$(mktemp)"
+          if ! curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' -o "$caddy_key_tmp" || \
+             ! gpg --batch --yes --dearmor -o "$caddy_keyring_tmp" "$caddy_key_tmp" || \
+             ! curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' -o "$caddy_list_tmp"; then
+            rm -f "$caddy_key_tmp" "$caddy_keyring_tmp" "$caddy_list_tmp"
+            log_warn "Caddy 官方仓库配置下载失败，回退到发行版仓库包。"
+            pkg_install caddy
+            return 0
+          fi
+          backup_file /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+          backup_file /etc/apt/sources.list.d/caddy-stable.list
+          install -m 0644 "$caddy_keyring_tmp" /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+          install -m 0644 "$caddy_list_tmp" /etc/apt/sources.list.d/caddy-stable.list
+          rm -f "$caddy_key_tmp" "$caddy_keyring_tmp" "$caddy_list_tmp"
         fi
+        pkg_invalidate_index
         pkg_update_index
       fi
-      pkg_install caddy
+      pkg_install_exact caddy
       systemctl list-unit-files | grep -q '^caddy\.service' && run systemctl enable --now caddy || true
-      firewall_allow_port 80
-      firewall_allow_port 443
+      firewall_allow_port_if_present 80
+      firewall_allow_port_if_present 443
       ;;
     nginx)
       log_step "安装 Nginx"
-      pkg_install nginx
+      pkg_update_index
+      pkg_install_exact nginx
       systemctl list-unit-files | grep -q '^nginx\.service' && run systemctl enable --now nginx || true
-      firewall_allow_port 80
-      firewall_allow_port 443
+      firewall_allow_port_if_present 80
+      firewall_allow_port_if_present 443
       ;;
     *) log_warn "未知 Web 环境：$stack" ;;
   esac
