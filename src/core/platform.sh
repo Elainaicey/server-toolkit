@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 
+# 本文件定义由入口加载、再由 feature 模块消费的平台状态。
+# ShellCheck 按单文件分析时无法跟踪这种跨模块读取。
+# shellcheck disable=SC2034
+
 OS_ID=""; OS_NAME=""; OS_CODENAME=""; ARCH=""
-CPU_CORES=""; MEMORY_MB=""; MEMORY_USED_MB=""; SWAP_MB=""; SWAP_USED_MB=""; ROOT_USAGE=""; ROOT_USED_PERCENT=""; VIRTUALIZATION=""; LOAD_AVERAGE=""; UPTIME_TEXT=""
+CPU_CORES=""; MEMORY_MB=""; MEMORY_USED_MB=""; SWAP_MB=""; SWAP_USED_MB=""; ROOT_USED_PERCENT=""; VIRTUALIZATION=""; LOAD_AVERAGE=""; UPTIME_TEXT=""
 PACKAGE_INDEX_UPDATED=0
 
 platform_detect() {
@@ -18,7 +22,6 @@ platform_detect() {
   MEMORY_USED_MB="$(awk '/MemTotal/{total=$2}/MemAvailable/{available=$2}END{printf "%.0f",(total-available)/1024}' /proc/meminfo 2>/dev/null || printf '0')"
   SWAP_MB="$(awk '/SwapTotal/ {printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null || printf '0')"
   SWAP_USED_MB="$(awk '/SwapTotal/{total=$2}/SwapFree/{free=$2}END{printf "%.0f",(total-free)/1024}' /proc/meminfo 2>/dev/null || printf '0')"
-  ROOT_USAGE="$(df -h / 2>/dev/null | awk 'NR == 2 {print $3 "/" $2 " (" $5 ")"}')"
   ROOT_USED_PERCENT="$(df -P / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5);print $5}')"
   VIRTUALIZATION="$(systemd-detect-virt 2>/dev/null || printf 'unknown')"
   LOAD_AVERAGE="$(awk '{print $1 " " $2 " " $3}' /proc/loadavg 2>/dev/null || printf '?')"

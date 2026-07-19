@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 
+# 颜色变量由随后加载的 UI 与 feature 模块消费。
+# shellcheck disable=SC2034
+
 DRY_RUN=0
 NO_COLOR=0
-RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; MAGENTA=''; WHITE=''; MUTED=''; BOLD=''; DIM=''; NC=''
+RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; MAGENTA=''; WHITE=''; MUTED=''; BOLD=''; NC=''
 AUDIT_LOG="${SERVER_TOOLKIT_AUDIT_LOG:-/var/log/server-toolkit/actions.log}"
 
 runtime_colors() {
@@ -12,7 +15,7 @@ runtime_colors() {
   # 使用明亮的 ANSI 基础色，兼顾深色终端、低色彩终端和 SSH 会话。
   RED=$'\033[0;91m'; GREEN=$'\033[0;92m'; YELLOW=$'\033[0;93m'
   BLUE=$'\033[0;94m'; MAGENTA=$'\033[0;95m'; CYAN=$'\033[0;96m'
-  WHITE=$'\033[0;97m'; MUTED=$'\033[0;90m'; BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
+  WHITE=$'\033[0;97m'; MUTED=$'\033[0;90m'; BOLD=$'\033[1m'; NC=$'\033[0m'
 }
 
 info() { printf '%b[信息]%b %s\n' "$GREEN" "$NC" "$*"; }

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 测试替身与目录变量由随后 source 的 catalog 模块间接使用。
+# shellcheck disable=SC2034,SC2317,SC2329
 set -Eeuo pipefail
 IFS=$'\n\t'
 

@@ -15,7 +15,7 @@ runtime_colors
 platform_detect() {
   OS_NAME='Debian GNU/Linux 13 (trixie)'; ARCH=amd64; VIRTUALIZATION=kvm
   UPTIME_TEXT='3 hours'; LOAD_AVERAGE='0.05 0.02 0.00'; CPU_CORES=1
-  MEMORY_USED_MB=453; MEMORY_MB=967; SWAP_USED_MB=0; SWAP_MB=2048; ROOT_USED_PERCENT=53
+  MEMORY_USED_MB=453; MEMORY_MB=967; SWAP_USED_MB=0; SWAP_MB=2048
 }
 command_exists() { [[ "$1" == ss || "$1" == docker ]]; }
 package_upgradable_count() { printf '7'; }
