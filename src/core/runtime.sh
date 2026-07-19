@@ -2,7 +2,7 @@
 
 DRY_RUN=0
 NO_COLOR=0
-RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; BOLD=''; DIM=''; NC=''
+RED=''; GREEN=''; YELLOW=''; BLUE=''; CYAN=''; MAGENTA=''; WHITE=''; MUTED=''; BOLD=''; DIM=''; NC=''
 AUDIT_LOG="${SERVER_TOOLKIT_AUDIT_LOG:-/var/log/server-toolkit/actions.log}"
 
 runtime_colors() {
@@ -10,7 +10,8 @@ runtime_colors() {
     return 0
   fi
   RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
-  BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m'; BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
+  BLUE=$'\033[0;34m'; CYAN=$'\033[0;36m'; MAGENTA=$'\033[0;35m'
+  WHITE=$'\033[0;37m'; MUTED=$'\033[0;90m'; BOLD=$'\033[1m'; DIM=$'\033[2m'; NC=$'\033[0m'
 }
 
 info() { printf '%b[信息]%b %s\n' "$GREEN" "$NC" "$*"; }
@@ -20,6 +21,15 @@ die() { error "$*"; exit 1; }
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 require_root() { [[ "${EUID}" -eq 0 ]] || die "此操作需要 root 权限，请使用 sudo serverctl。"; }
+
+runtime_locale() {
+  local charmap fallback
+  charmap="$(locale charmap 2>/dev/null || true)"
+  if [[ "$charmap" != "UTF-8" ]]; then
+    fallback="$(locale -a 2>/dev/null | awk 'tolower($0)=="c.utf8" || tolower($0)=="c.utf-8" {print; exit}')"
+    if [[ -n "$fallback" ]]; then export LC_ALL="$fallback"; fi
+  fi
+}
 
 audit() {
   local message="$*"
@@ -96,6 +106,7 @@ runtime_error() {
 }
 
 runtime_init() {
+  runtime_locale
   runtime_colors
   trap 'status=$?; runtime_error "$LINENO" "$BASH_COMMAND" "$status"' ERR
 }

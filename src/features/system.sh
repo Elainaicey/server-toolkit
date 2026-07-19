@@ -12,7 +12,7 @@ doctor_result() {
 
 system_doctor() {
   platform_detect
-  ui_header "环境检查"
+  ui_page "环境检查" "系统支持、软件包状态、存储、网络与运行时依赖"
   doctor_result pass "$OS_NAME ($ARCH)"
   if command_exists apt-get; then doctor_result pass "APT 可用"; else doctor_result fail "缺少 apt-get"; fi
   local audit; audit="$(dpkg --audit 2>/dev/null || true)"
@@ -31,6 +31,7 @@ system_doctor() {
 
 system_set_hostname() {
   local current name temporary
+  ui_page "修改主机名" "验证格式、备份 hosts 并通过 hostnamectl 应用"
   current="$(hostname -s 2>/dev/null || hostname)"; name="$(read_input "新主机名" "$current")"
   [[ "$name" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]] || { warn "主机名格式无效。"; return 1; }
   [[ "$name" != "$current" ]] || { info "主机名未变化。"; return 0; }
@@ -44,6 +45,7 @@ system_set_hostname() {
 
 system_set_timezone() {
   local current timezone
+  ui_page "修改时区" "使用系统 zoneinfo 数据库配置时区"
   current="$(timedatectl show -p Timezone --value 2>/dev/null || printf 'Etc/UTC')"; timezone="$(read_input "时区" "$current")"
   [[ -f "/usr/share/zoneinfo/$timezone" ]] || { warn "不存在的时区：$timezone"; return 1; }
   [[ "$timezone" != "$current" ]] || { info "时区未变化。"; return 0; }
@@ -52,6 +54,7 @@ system_set_timezone() {
 }
 
 system_create_swap() {
+  ui_page "创建 Swap" "为低内存 VPS 创建受保护的交换文件"
   swapon --show --noheadings 2>/dev/null | grep -q . && { warn "系统已经启用 Swap。"; return 0; }
   [[ ! -e /swapfile ]] || { warn "/swapfile 已存在。"; return 1; }
   local size_mb; size_mb="$(read_input "Swap 大小（MB）" "1024")"
@@ -67,29 +70,57 @@ system_create_swap() {
 }
 
 system_time_sync() {
-  ui_header "时间同步"; timedatectl status 2>/dev/null | sed -n '1,10p' || true
+  ui_page "时间同步" "查看时间状态并启用 systemd NTP"
+  timedatectl status 2>/dev/null | sed -n '1,10p' || true
   confirm "启用 systemd 时间同步？" || return 0; require_root; run timedatectl set-ntp true; audit "action=enable-time-sync"
 }
 
 system_package_health() {
-  ui_header "软件包状态"
+  ui_page "软件包状态" "dpkg 审计、可用更新与 APT 缓存"
   dpkg --audit 2>/dev/null || true
   printf '\n可更新软件：%s\n' "$(package_upgradable_count)"
   printf 'APT 缓存：%s\n' "$(du -sh /var/cache/apt/archives 2>/dev/null | awk '{print $1}' || printf '未知')"
 }
 
-system_disk_usage() { ui_header "磁盘与目录"; df -hT; printf '\n主要目录：\n'; du -x -h --max-depth=1 /var /home 2>/dev/null | sort -h | tail -n 20 || true; }
+system_disk_usage() { ui_page "磁盘与目录" "文件系统、挂载类型和主要目录占用"; df -hT; printf '\n主要目录：\n'; du -x -h --max-depth=1 /var /home 2>/dev/null | sort -h | tail -n 20 || true; }
 
 system_processes() {
-  ui_header "进程与资源"
+  ui_page "进程与资源" "按 CPU 和内存使用率查看高占用进程"
   ui_section "内存占用最高"
   ps -eo pid,user,%cpu,%mem,rss,stat,comm --sort=-%mem 2>/dev/null | sed -n '1,16p'
   ui_section "CPU 占用最高"
   ps -eo pid,user,%cpu,%mem,etime,stat,comm --sort=-%cpu 2>/dev/null | sed -n '1,16p'
 }
 
+system_pressure() {
+  platform_detect
+  ui_page "资源压力分析" "负载、内存、存储空间、inode 与 OOM 事件"
+  local load_one memory_percent root_percent inode_percent oom_count
+  load_one="$(awk '{print $1}' /proc/loadavg)"
+  memory_percent=0
+  if [[ "$MEMORY_USED_MB" =~ ^[0-9]+$ && "$MEMORY_MB" =~ ^[0-9]+$ ]] && (( MEMORY_MB > 0 )); then
+    memory_percent=$((MEMORY_USED_MB * 100 / MEMORY_MB))
+  fi
+  root_percent="${ROOT_USED_PERCENT:-0}"
+  inode_percent="$(df -Pi / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5);print $5}')"
+  oom_count="$(journalctl -k -b --no-pager 2>/dev/null | grep -Eic 'out of memory|oom-killer|killed process' || true)"
+
+  ui_progress "内存压力" "$MEMORY_USED_MB" "$MEMORY_MB" "MiB"
+  ui_kv "1 分钟负载" "$load_one / $CPU_CORES vCPU"
+  ui_kv "根分区使用率" "${root_percent}%"
+  ui_kv "根分区 inode" "${inode_percent:-0}%"
+  ui_kv "本次启动 OOM" "$oom_count"
+
+  ui_section "判断"
+  if awk -v load="$load_one" -v cpu="$CPU_CORES" 'BEGIN{exit !(load > cpu)}'; then doctor_result warn "负载已高于 CPU 核心数"; else doctor_result pass "当前负载处于可控范围"; fi
+  if (( memory_percent >= 90 )); then doctor_result fail "内存使用率达到 ${memory_percent}%"; elif (( memory_percent >= 75 )); then doctor_result warn "内存使用率达到 ${memory_percent}%"; else doctor_result pass "内存余量正常"; fi
+  if [[ "$root_percent" =~ ^[0-9]+$ ]] && (( root_percent >= 90 )); then doctor_result fail "根分区空间紧张"; else doctor_result pass "根分区空间正常"; fi
+  if [[ "$inode_percent" =~ ^[0-9]+$ ]] && (( inode_percent >= 90 )); then doctor_result warn "inode 使用率较高"; else doctor_result pass "inode 余量正常"; fi
+  if (( oom_count > 0 )); then doctor_result warn "本次启动检测到 $oom_count 条 OOM 相关日志"; else doctor_result pass "本次启动未检测到 OOM"; fi
+}
+
 system_user_sessions() {
-  ui_header "用户与登录会话"
+  ui_page "用户与登录会话" "当前连接、最近登录与可交互账户"
   ui_section "当前会话"
   who 2>/dev/null || true
   ui_section "最近登录"
@@ -99,7 +130,7 @@ system_user_sessions() {
 }
 
 system_schedules() {
-  ui_header "计划任务"
+  ui_page "计划任务" "systemd Timer、用户 Crontab 和系统 Cron 目录"
   ui_section "即将运行的 systemd Timer"
   systemctl list-timers --all --no-pager 2>/dev/null | sed -n '1,30p' || ui_empty "无法读取 Timer"
   ui_section "当前用户 Crontab"
@@ -114,7 +145,7 @@ system_schedules() {
 }
 
 system_reboot_status() {
-  ui_header "重启与内核状态"
+  ui_page "重启与内核状态" "内核版本、重启提示与最近启动记录"
   ui_kv "当前内核" "$(uname -r)"
   if [[ -f /var/run/reboot-required ]]; then
     doctor_result warn "系统提示需要重启"
@@ -130,7 +161,7 @@ system_reboot_status() {
 }
 
 system_cleanup() {
-  ui_header "安全清理"
+  ui_page "安全清理" "清理可再生成的缓存和过期 Journal"
   ui_kv "APT 缓存" "$(du -sh /var/cache/apt/archives 2>/dev/null | awk '{print $1}' || printf '未知')"
   ui_kv "Journal" "$(journalctl --disk-usage 2>/dev/null | sed 's/.*take up //')"
   confirm "清理 APT 缓存并保留最近 14 天 Journal？" || return 0; require_root
@@ -142,44 +173,45 @@ system_cleanup() {
 system_menu() {
   local choice
   while true; do
-    ui_clear
-    ui_header "系统管理"
+    ui_page "系统管理" "状态诊断、基础配置与项目维护"
     ui_section "状态与诊断"
     ui_item 1 "系统仪表盘" "资源与服务总览"
     ui_item 2 "环境检查" "运行依赖与连通性"
-    ui_item 3 "进程与资源" "CPU、内存占用排行"
-    ui_item 4 "用户与会话" "在线用户和最近登录"
-    ui_item 5 "计划任务" "systemd Timer 与 Cron"
-    ui_item 6 "重启状态" "内核、重启提示与启动历史"
-    ui_item 7 "软件包状态" "dpkg 健康、更新与缓存"
-    ui_item 8 "磁盘分析" "文件系统与主要目录"
+    ui_item 3 "资源压力分析" "负载、内存、空间、inode 与 OOM"
+    ui_item 4 "进程与资源" "CPU、内存占用排行"
+    ui_item 5 "用户与会话" "在线用户和最近登录"
+    ui_item 6 "计划任务" "systemd Timer 与 Cron"
+    ui_item 7 "重启状态" "内核、重启提示与启动历史"
+    ui_item 8 "软件包状态" "dpkg 健康、更新与缓存"
+    ui_item 9 "磁盘分析" "文件系统与主要目录"
     ui_section "系统设置"
-    ui_item 9 "修改主机名"
-    ui_item 10 "修改时区"
-    ui_item 11 "创建 Swap"
-    ui_item 12 "时间同步"
-    ui_item 13 "安全清理" "APT 缓存和旧 Journal"
+    ui_item 10 "修改主机名"
+    ui_item 11 "修改时区"
+    ui_item 12 "创建 Swap"
+    ui_item 13 "时间同步"
+    ui_item 14 "安全清理" "APT 缓存和旧 Journal"
     ui_section "项目"
-    ui_item 14 "关于本项目"
-    ui_item 15 "卸载本项目" "程序卸载或彻底清除项目数据"
+    ui_item 15 "关于本项目"
+    ui_item 16 "卸载本项目" "程序卸载或彻底清除项目数据"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
       1) dashboard_show ;;
       2) system_doctor ;;
-      3) system_processes ;;
-      4) system_user_sessions ;;
-      5) system_schedules ;;
-      6) system_reboot_status ;;
-      7) system_package_health ;;
-      8) system_disk_usage ;;
-      9) system_set_hostname || true ;;
-      10) system_set_timezone || true ;;
-      11) system_create_swap || true ;;
-      12) system_time_sync || true ;;
-      13) system_cleanup || true ;;
-      14) toolkit_about ;;
-      15) toolkit_uninstall || true ;;
+      3) system_pressure ;;
+      4) system_processes ;;
+      5) system_user_sessions ;;
+      6) system_schedules ;;
+      7) system_reboot_status ;;
+      8) system_package_health ;;
+      9) system_disk_usage ;;
+      10) system_set_hostname || true ;;
+      11) system_set_timezone || true ;;
+      12) system_create_swap || true ;;
+      13) system_time_sync || true ;;
+      14) system_cleanup || true ;;
+      15) toolkit_about ;;
+      16) toolkit_uninstall || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

@@ -51,5 +51,9 @@ grep -q -- '--purge-data' "$ROOT_DIR/scripts/install.sh" || {
   printf 'FAIL: 安装器缺少彻底清除选项\n' >&2
   exit 1
 }
+grep -q 'ui_display_width' "$ROOT_DIR/src/core/ui.sh" || {
+  printf 'FAIL: UI 没有按终端显示宽度处理中文对齐\n' >&2
+  exit 1
+}
 
 printf 'PASS: structure\n'

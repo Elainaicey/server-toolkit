@@ -38,7 +38,10 @@ catalog_print() {
     fi
     state="$(ui_badge "未安装" "$DIM")"
     catalog_installed "$id|$category|$name|$description|$packages|$handler" && state="$(ui_badge "已安装" "$GREEN")"
-    printf '  %-20s %-18s %b\n' "$id" "$name" "$state"
+    printf '  '
+    ui_pad "$id" 20
+    ui_pad "$name" 20
+    printf '%b\n' "$state"
     printf '  %b%s%b\n' "$DIM" "$description" "$NC"
     count=$((count + 1))
   done < <(catalog_rows "$query")
@@ -56,7 +59,7 @@ catalog_install() {
   record="$(catalog_record "$id")" || { warn "软件目录中没有 '$id'。"; return 1; }
   IFS='|' read -r _id category name description packages handler <<<"$record"
   catalog_installed "$record" && { info "$name 已经安装。"; return 0; }
-  ui_header "安装 $name"
+  ui_page "安装软件 / $name" "$id · $category"
   ui_kv "软件 ID" "$id"
   ui_kv "分类" "$category"
   ui_kv "说明" "$description"
@@ -92,7 +95,7 @@ catalog_remove() {
   record="$(catalog_record "$id")" || { warn "软件目录中没有 '$id'。"; return 1; }
   IFS='|' read -r _id category name description packages handler <<<"$record"
   catalog_installed "$record" || { info "$name 未安装。"; return 0; }
-  ui_header "移除 $name"
+  ui_page "移除软件 / $name" "$id · $category"
   ui_kv "软件 ID" "$id"
   ui_kv "分类" "$category"
   ui_kv "说明" "$description"
@@ -119,7 +122,7 @@ catalog_item_menu() {
   record="$(catalog_record "$id")" || return 1
   IFS='|' read -r _id category name description packages handler <<<"$record"
   while true; do
-    ui_clear; ui_header "$name"
+    ui_page "软件管理 / $name" "$id · $category"
     status="未安装"
     if catalog_installed "$record"; then
       status="已安装"
@@ -147,8 +150,7 @@ catalog_item_menu() {
 software_catalog_menu() {
   local query="" input="" show_all=0 count
   while true; do
-    ui_clear
-    ui_header "软件管理"
+    ui_page "软件管理" "搜索、检查、安装或移除一个独立软件"
     printf '%b输入准确 ID 查看软件；输入其他文字搜索；all 显示全部；0 返回。%b\n\n' "$DIM" "$NC"
     if [[ "$show_all" -eq 1 || -n "$query" ]]; then
       catalog_print "$query" || true

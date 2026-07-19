@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 toolkit_about() {
-  ui_header "关于 Server Toolkit"
+  ui_page "关于 Server Toolkit" "版本、路径与项目资源"
   ui_kv "版本" "$SERVERCTL_VERSION"
   ui_kv "安装目录" "$ROOT_DIR"
   ui_kv "软件目录" "$SOFTWARE_CATALOG"
@@ -24,7 +24,7 @@ toolkit_uninstall() {
     export SERVER_TOOLKIT_BACKUP_ROOT SERVER_TOOLKIT_LOG_ROOT SERVER_TOOLKIT_STATE_ROOT
   fi
 
-  ui_header "卸载 Server Toolkit"
+  ui_page "卸载 Server Toolkit" "安全删除程序文件与可选的项目数据"
   ui_danger "卸载会立即结束当前控制台。"
   ui_item 1 "仅卸载程序" "删除安装目录和 serverctl 命令，保留日志与备份"
   ui_item 2 "彻底清除项目数据" "同时删除项目日志、备份和状态数据"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 network_show() {
-  ui_header "网络概览"
+  ui_page "网络概览" "接口地址、默认路由、DNS 与拥塞控制"
   ip -brief address 2>/dev/null || true
   ui_section "默认路由"; ip route show default 2>/dev/null || true; ip -6 route show default 2>/dev/null || true
   ui_section "DNS"; sed -n '1,12p' /etc/resolv.conf 2>/dev/null || true
@@ -9,7 +9,7 @@ network_show() {
 }
 
 network_connectivity_test() {
-  ui_header "连通性检查"
+  ui_page "连通性检查" "DNS、IPv4/IPv6 路由和 HTTPS 可用性"
   if getent hosts github.com >/dev/null 2>&1; then doctor_result pass "DNS 解析 github.com"; else doctor_result fail "DNS 解析失败"; fi
   if ip -4 route get 1.1.1.1 >/dev/null 2>&1; then doctor_result pass "IPv4 默认路由"; else doctor_result warn "没有 IPv4 默认路由"; fi
   if ip -6 route get 2606:4700:4700::1111 >/dev/null 2>&1; then doctor_result pass "IPv6 默认路由"; else doctor_result warn "没有 IPv6 默认路由"; fi
@@ -22,7 +22,7 @@ network_connectivity_test() {
 }
 
 network_list_ports() {
-  ui_header "监听端口"
+  ui_page "监听端口" "本机 TCP/UDP 监听地址及关联进程"
   if command_exists ss; then
     printf '%-8s %-24s %s\n' "协议" "本地地址" "进程"
     ss -H -lntup 2>/dev/null | awk '{printf "%-8s %-24s %s\n", $1, $5, substr($0,index($0,$7))}'
@@ -33,7 +33,7 @@ network_list_ports() {
 
 network_port_detail() {
   local port; port="$(read_input "端口" "80")"; valid_port "$port" || { warn "端口无效。"; return 1; }
-  ui_header "端口 $port"
+  ui_page "端口 $port" "定位监听套接字和占用进程"
   ss -H -lntup "sport = :$port" 2>/dev/null || true
   if command_exists lsof; then
     lsof -nP -i ":$port" 2>/dev/null || true
@@ -41,7 +41,7 @@ network_port_detail() {
 }
 
 network_routes() {
-  ui_header "路由表"
+  ui_page "路由表" "IPv4、IPv6 和策略路由规则"
   ui_section "IPv4"
   ip -4 route show table all 2>/dev/null || true
   ui_section "IPv6"
@@ -51,7 +51,7 @@ network_routes() {
 }
 
 network_interface_stats() {
-  ui_header "网卡流量统计"
+  ui_page "网卡流量统计" "从 /proc/net/dev 读取本次启动累计流量"
   printf '  %-16s %16s %16s\n' "网卡" "接收" "发送"
   awk -F '[: ]+' '
     NR > 2 {
@@ -62,11 +62,25 @@ network_interface_stats() {
   ui_note "数据为本次开机以来的累计流量，不等同于服务商计费流量。"
 }
 
+network_connections() {
+  ui_page "连接会话" "TCP/UDP 汇总与当前已建立的远端连接"
+  command_exists ss || { warn "缺少 ss 命令。"; return 1; }
+  ui_section "套接字汇总"
+  ss -s 2>/dev/null || true
+  ui_section "远端端点排行"
+  printf '  %-8s %-32s %s\n' "数量" "远端地址" "状态"
+  ss -H -tan 2>/dev/null |
+    awk '$1=="ESTAB" {count[$5]++} END{for(endpoint in count) printf "%8d %-32s established\n",count[endpoint],endpoint}' |
+    sort -nr | sed -n '1,20p'
+  ui_section "连接状态分布"
+  ss -H -tan 2>/dev/null | awk '{count[$1]++}END{for(state in count) printf "  %-16s %d\n",state,count[state]}' | sort
+}
+
 network_target_diagnose() {
   local target address
   target="$(read_input "域名或 IP" "github.com")"
   valid_network_target "$target" || { warn "目标格式无效。"; return 1; }
-  ui_header "目标诊断 · $target"
+  ui_page "目标诊断" "$target · DNS、路由选择、延迟与丢包"
   ui_section "解析结果"
   getent ahosts "$target" 2>/dev/null | awk '!seen[$1]++ {print "  "$0}' | sed -n '1,12p' || true
   address="$(getent ahostsv4 "$target" 2>/dev/null | awk 'NR==1{print $1}')"
@@ -86,6 +100,7 @@ network_target_diagnose() {
 
 network_enable_bbr() {
   local available; available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+  ui_page "启用 BBR" "检查内核能力并写入独立 sysctl 配置"
   [[ "$available" == *bbr* ]] || warn "将尝试加载 BBR 内核模块。"
   confirm "启用 BBR 拥塞控制？" || return 0; require_root
   if [[ "$available" != *bbr* ]] && command_exists modprobe; then
@@ -106,7 +121,7 @@ EOF
 }
 
 network_set_address_preference() {
-  ui_header "IP 地址优先级"
+  ui_page "IP 地址优先级" "设置 IPv4 优先或恢复系统默认地址选择"
   ui_item 1 "IPv4 优先"
   ui_item 2 "恢复系统默认"
   ui_item 0 "取消"
@@ -136,17 +151,17 @@ EOF
 network_menu() {
   local choice
   while true; do
-    ui_clear
-    ui_header "网络与端口"
+    ui_page "网络与端口" "接口、路由、连通性、监听服务与内核网络能力"
     ui_item 1 "网络概览"
     ui_item 2 "连通性检查"
     ui_item 3 "目标诊断" "DNS、路由、延迟与丢包"
     ui_item 4 "路由表"
     ui_item 5 "网卡流量" "本次开机累计统计"
-    ui_item 6 "监听端口"
-    ui_item 7 "查询端口"
-    ui_item 8 "启用 BBR"
-    ui_item 9 "IP 地址优先级"
+    ui_item 6 "连接会话" "套接字汇总与远端端点排行"
+    ui_item 7 "监听端口"
+    ui_item 8 "查询端口"
+    ui_item 9 "启用 BBR"
+    ui_item 10 "IP 地址优先级"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
@@ -155,10 +170,11 @@ network_menu() {
       3) network_target_diagnose || true ;;
       4) network_routes ;;
       5) network_interface_stats ;;
-      6) network_list_ports ;;
-      7) network_port_detail || true ;;
-      8) network_enable_bbr || true ;;
-      9) network_set_address_preference || true ;;
+      6) network_connections || true ;;
+      7) network_list_ports ;;
+      8) network_port_detail || true ;;
+      9) network_enable_bbr || true ;;
+      10) network_set_address_preference || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

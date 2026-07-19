@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 OS_ID=""; OS_NAME=""; OS_CODENAME=""; ARCH=""
-CPU_CORES=""; MEMORY_MB=""; SWAP_MB=""; ROOT_USAGE=""; VIRTUALIZATION=""; LOAD_AVERAGE=""; UPTIME_TEXT=""
+CPU_CORES=""; MEMORY_MB=""; MEMORY_USED_MB=""; SWAP_MB=""; SWAP_USED_MB=""; ROOT_USAGE=""; ROOT_USED_PERCENT=""; VIRTUALIZATION=""; LOAD_AVERAGE=""; UPTIME_TEXT=""
 PACKAGE_INDEX_UPDATED=0
 
 platform_detect() {
@@ -15,8 +15,11 @@ platform_detect() {
   ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
   CPU_CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf '?')"
   MEMORY_MB="$(awk '/MemTotal/ {printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null || printf '?')"
+  MEMORY_USED_MB="$(awk '/MemTotal/{total=$2}/MemAvailable/{available=$2}END{printf "%.0f",(total-available)/1024}' /proc/meminfo 2>/dev/null || printf '0')"
   SWAP_MB="$(awk '/SwapTotal/ {printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null || printf '0')"
+  SWAP_USED_MB="$(awk '/SwapTotal/{total=$2}/SwapFree/{free=$2}END{printf "%.0f",(total-free)/1024}' /proc/meminfo 2>/dev/null || printf '0')"
   ROOT_USAGE="$(df -h / 2>/dev/null | awk 'NR == 2 {print $3 "/" $2 " (" $5 ")"}')"
+  ROOT_USED_PERCENT="$(df -P / 2>/dev/null | awk 'NR==2{gsub(/%/,"",$5);print $5}')"
   VIRTUALIZATION="$(systemd-detect-virt 2>/dev/null || printf 'unknown')"
   LOAD_AVERAGE="$(awk '{print $1 " " $2 " " $3}' /proc/loadavg 2>/dev/null || printf '?')"
   UPTIME_TEXT="$(uptime -p 2>/dev/null | sed 's/^up //' || printf '?')"

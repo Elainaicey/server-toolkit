@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 security_firewall_status() {
-  ui_header "UFW 状态"
+  ui_page "UFW 状态" "主机防火墙状态与编号规则"
   if command_exists ufw; then
     ufw status numbered
   else
@@ -10,7 +10,7 @@ security_firewall_status() {
 }
 
 security_audit() {
-  ui_header "安全基线检查"
+  ui_page "安全基线检查" "防火墙、SSH、特权账户、Fail2ban 与重启状态"
   local ssh_settings uid0_count
   if command_exists ufw && ufw status 2>/dev/null | grep -q '^Status: active'; then
     doctor_result pass "UFW 已启用"
@@ -36,7 +36,7 @@ security_audit() {
 }
 
 security_exposed_ports() {
-  ui_header "公网监听端口"
+  ui_page "公网监听端口" "识别监听所有 IPv4/IPv6 地址的服务"
   if ! command_exists ss; then
     warn "缺少 ss 命令。"
     return 1
@@ -53,7 +53,7 @@ security_exposed_ports() {
 }
 
 security_fail2ban() {
-  ui_header "Fail2ban 状态"
+  ui_page "Fail2ban 状态" "服务连通性、Jail 和封禁统计"
   if ! command_exists fail2ban-client; then
     ui_empty "Fail2ban 未安装，可在软件管理中搜索 fail2ban。"
     return 0
@@ -70,10 +70,29 @@ security_fail2ban() {
   fi
 }
 
+security_tls_inspect() {
+  local target port endpoint pem certificate
+  target="$(read_input "域名或 IP" "github.com")"
+  valid_network_target "$target" || { warn "目标格式无效。"; return 1; }
+  port="$(read_input "TLS 端口" "443")"
+  valid_port "$port" || { warn "端口无效。"; return 1; }
+  command_exists openssl || { warn "未安装 openssl。"; return 1; }
+  command_exists timeout || { warn "缺少 timeout 命令。"; return 1; }
+  endpoint="$target:$port"
+  if [[ "$target" == *:* ]]; then endpoint="[$target]:$port"; fi
+  ui_page "TLS 证书检查" "$target:$port"
+  pem="$(timeout 12 openssl s_client -servername "$target" -connect "$endpoint" </dev/null 2>/dev/null || true)"
+  certificate="$(openssl x509 -noout -subject -issuer -serial -dates -fingerprint -sha256 2>/dev/null <<<"$pem" || true)"
+  [[ -n "$certificate" ]] || { warn "未能取得有效证书。"; return 1; }
+  printf '%s\n' "$certificate"
+  ui_section "证书主机名"
+  openssl x509 -noout -ext subjectAltName 2>/dev/null <<<"$pem" || true
+}
+
 security_enable_firewall() {
   local ssh_port raw old_ifs port; local ports=()
   ssh_port="$(detect_ssh_port)"
-  ui_header "启用基础防火墙"
+  ui_page "启用基础防火墙" "保留当前 SSH 端口并应用默认入站策略"
   ui_kv "保留 SSH" "$ssh_port/tcp"
   ui_kv "默认策略" "拒绝入站，允许出站"
   raw="$(read_input "额外 TCP 端口（逗号分隔，可留空）" "")"
@@ -100,6 +119,7 @@ security_enable_firewall() {
 
 security_firewall_rule() {
   local mode="$1" port; command_exists ufw || { warn "请先启用 UFW。"; return 1; }
+  ui_page "UFW 端口规则" "添加或删除一个明确的 TCP 放行端口"
   port="$(read_input "TCP 端口" "443")"; valid_port "$port" || { warn "端口无效。"; return 1; }
   local verb="放行"
   if [[ "$mode" == "delete" ]]; then
@@ -128,7 +148,7 @@ security_configure_ssh() {
   local current_port new_port disable_password=0 disable_root=0 key_label="否" password_label="保持现状" root_label="保持现状"
   current_port="$(detect_ssh_port)"
   if security_public_key_exists; then key_label="是"; fi
-  ui_header "SSH 安全向导"
+  ui_page "SSH 安全向导" "端口、公钥、密码登录与 root 登录策略"
   ui_kv "当前端口" "$current_port"
   ui_kv "已检测公钥" "$key_label"
   new_port="$(read_input "SSH 端口" "$current_port")"
@@ -198,15 +218,14 @@ security_configure_ssh() {
 }
 
 security_auth_log() {
-  ui_header "近期 SSH 登录事件"
+  ui_page "SSH 登录事件" "最近 24 小时的成功、失败和无效用户记录"
   journalctl -u ssh.service -u sshd.service --since '-24 hours' --no-pager 2>/dev/null | grep -Ei 'accepted|failed|invalid user|disconnect' | tail -n 80 || ui_empty "没有可显示的事件"
 }
 
 security_menu() {
   local choice
   while true; do
-    ui_clear
-    ui_header "安全中心"
+    ui_page "安全中心" "检查暴露面，管理主机防火墙与 SSH 登录安全"
     ui_item 1 "安全基线检查" "防火墙、SSH、UID 0、Fail2ban 与重启"
     ui_item 2 "公网监听端口" "识别监听所有地址的服务"
     ui_item 3 "UFW 状态"
@@ -216,6 +235,7 @@ security_menu() {
     ui_item 7 "SSH 安全向导"
     ui_item 8 "SSH 登录事件"
     ui_item 9 "Fail2ban 状态"
+    ui_item 10 "TLS 证书检查" "签发者、有效期、指纹与主机名"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
@@ -228,6 +248,7 @@ security_menu() {
       7) security_configure_ssh || true ;;
       8) security_auth_log ;;
       9) security_fail2ban || true ;;
+      10) security_tls_inspect || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

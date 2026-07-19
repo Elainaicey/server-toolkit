@@ -1,184 +1,216 @@
+<div align="center">
+
 # Server Toolkit
 
-Server Toolkit 是一个面向 Debian / Ubuntu VPS 的中文交互式运维工具。它把常用检查与管理操作组织成清晰的一层功能中心，同时坚持“一个动作只做一件事、修改前说明、执行前确认、配置可恢复”。
+**面向 Debian / Ubuntu VPS 的中文交互式运维控制台**
 
-当前版本：`0.1.0`
+以清晰的信息架构组织系统、网络、安全、服务、软件、容器与配置恢复；每一次系统修改都强调可见、可确认与可追踪。
 
-> 这是一次从底层重新设计的版本，不兼容旧目录、旧命令或旧 profile。
+[![Version](https://img.shields.io/badge/version-0.1.0-00b8d9?style=flat-square)](./VERSION)
+[![Checks](https://img.shields.io/github/actions/workflow/status/Elainaicey/server-toolkit/ci.yml?branch=main&style=flat-square&label=checks)](https://github.com/Elainaicey/server-toolkit/actions)
+![Shell](https://img.shields.io/badge/shell-Bash%205.x-4EAA25?style=flat-square&logo=gnubash&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-A81D33?style=flat-square&logo=debian&logoColor=white)
+![Language](https://img.shields.io/badge/interface-简体中文-246BCE?style=flat-square)
 
-## 能做什么
+[快速开始](#快速开始) · [功能矩阵](#功能矩阵) · [命令参考](#命令参考) · [安全模型](#安全模型) · [项目结构](#项目结构)
 
-| 功能中心 | 能力 |
-| --- | --- |
-| 系统仪表盘 | 系统、CPU、内存、Swap、磁盘、负载、运行时间、关键服务、监听端口、可更新软件概览 |
-| 系统管理 | 环境检查、进程排行、用户会话、计划任务、重启状态、软件包健康、磁盘、主机名、时区、Swap、时间同步与清理 |
-| 网络与端口 | 地址、路由、网卡流量、目标诊断、IPv4/IPv6 连通性、监听端口、端口进程、BBR、地址优先级 |
-| 安全中心 | 安全基线、公网监听、UFW、SSH 安全向导、登录事件与 Fail2ban 状态 |
-| 服务与日志 | 运行/失败服务、启动错误、Timer、Journal、内核警告、服务控制与操作记录 |
-| 软件管理 | 按名称、ID 或说明搜索；查看安装状态；一次安装或移除一个软件 |
-| 应用与容器 | 常见应用状态；Docker 容器、镜像、资源、Compose、存储卷、网络和安全清理 |
-| 备份与恢复 | 浏览自动配置快照、检查备份清单、选择并恢复单个配置文件 |
+</div>
 
-软件目录涵盖常用基础工具、命令行工具、网络诊断、监控、备份、安全、开发环境、运行时、服务与容器工具。普通条目精确映射一个 APT 包；Docker 和 Caddy 使用独立的官方仓库安装器。
+---
 
-Docker 与 Caddy 安装流程分别遵循其[官方 Docker APT 文档](https://docs.docker.com/engine/install/)和[Caddy 安装文档](https://caddyserver.com/docs/install)。
+## 项目概览
 
-## 设计原则
+Server Toolkit 为自主管理的 Linux VPS 提供统一终端入口，覆盖从状态观察、故障定位到常规配置变更的高频工作流。
 
-- 单项安装：`install` 和 `remove` 一次只接收一个软件 ID，不提供套餐、多选或“全部安装”。
-- 人工确认：没有 profiles、`--yes` 或无人值守安装；所有修改动作都需要明确确认。
-- 副作用透明：安装软件不会顺便开放端口、修改 SSH、调整内核或配置其他服务。
-- 先验证再应用：端口、服务名、路径和 SSH 配置都经过校验。
-- 可预览、可追踪、可恢复：支持 `--dry-run`，记录 root 修改动作，并在改配置前建立快照。
-- 结构有边界：入口、核心能力、业务功能和数据配置彼此分离。
+项目不追求无边界地收集脚本，而是遵循以下约束：
 
-## 支持范围
+- **清晰分层**：系统能力优先于软件与应用，Docker 等独立应用归入应用中心。
+- **单项操作**：软件一次安装或移除一个条目，不提供套餐、全选和隐式依赖组合。
+- **人工确认**：不存在 `--yes`、profiles 或无人值守系统修改。
+- **副作用透明**：软件安装不会自动开放端口、修改 SSH 或套用网络调优模板。
+- **恢复优先**：配置变更前创建清单化快照；高风险配置先验证，再加载。
+- **最小运行依赖**：核心控制台使用 Bash 与 Debian/Ubuntu 标准系统工具实现。
 
-- Debian 11、12、13
-- Ubuntu 22.04、24.04
-- amd64、arm64
-- 使用 systemd 的常见 KVM / LXC VPS
+## 快速开始
 
-当前不支持 RHEL 系、Alpine 或非 systemd 系统。项目优先把明确支持的范围做稳，不保留未经验证的兼容分支。
+### 一键安装
 
-## 安装
-
-root 用户一键安装：
+root 会话：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/heads/main/install.sh)
 ```
 
-非 root 用户可使用：
+普通用户：
 
 ```bash
 sudo bash -c 'bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/heads/main/install.sh)'
 ```
 
-安装器可能使用临时暂存目录完成下载和原子替换，但会自动清理；最终项目只安装到 `/opt/server-toolkit`。
+安装器将程序原子部署到 `/opt/server-toolkit`，并创建 `/usr/local/bin/serverctl`。下载或暂存目录会在流程结束后自动清理。
 
-也可以克隆仓库后安装本地代码：
-
-```bash
-git clone https://github.com/Elainaicey/server-toolkit.git
-cd server-toolkit
-sudo bash install.sh
-```
-
-安装器会显示目标并等待确认，随后原子替换程序目录：
-
-| 内容 | 默认路径 |
-| --- | --- |
-| 程序 | `/opt/server-toolkit` |
-| 命令入口 | `/usr/local/bin/serverctl` |
-| 配置备份 | `/var/backups/server-toolkit` |
-| 操作记录 | `/var/log/server-toolkit/actions.log` |
-
-指定分支、标签或安装位置：
-
-```bash
-sudo bash install.sh --ref v0.1.0
-sudo bash install.sh --dir /opt/server-toolkit --bin /usr/local/bin/serverctl
-```
-
-查看安装计划而不写入：
-
-```bash
-sudo bash install.sh --dry-run
-```
-
-## 使用
-
-打开交互控制台：
+### 启动控制台
 
 ```bash
 sudo serverctl
 ```
 
-常用非交互查询命令：
+控制台主导航按系统依赖层级排列：
 
-```bash
-serverctl status
-serverctl doctor
-serverctl ports
-serverctl system
-serverctl network
-serverctl security
-serverctl services
-serverctl apps
-serverctl list
-serverctl list python
-serverctl uninstall
-serverctl version
+```text
+系统仪表盘 → 系统管理 → 网络与端口 → 安全中心
+            → 服务与日志 → 软件管理 → 应用与容器 → 备份与恢复
 ```
 
-安装或移除一个软件：
+## 功能矩阵
+
+| 中心 | 能力 |
+| --- | --- |
+| **系统仪表盘** | 主机环境、负载、内存/Swap/磁盘进度、systemd 状态、TCP 监听、软件更新与 Docker 状态 |
+| **系统管理** | 环境检查、资源压力、进程排行、用户会话、计划任务、重启状态、软件包健康、磁盘分析、主机名、时区、Swap、NTP 与安全清理 |
+| **网络与端口** | 接口地址、路由与策略规则、DNS、IPv4/IPv6 连通性、目标诊断、网卡流量、连接会话、监听端口、端口进程、BBR 与地址优先级 |
+| **安全中心** | 安全基线、公网监听、UFW 状态与规则、SSH 安全向导、登录事件、Fail2ban 状态与 TLS 证书检查 |
+| **服务与日志** | failed/active 服务、单服务状态与 Journal、启动停止、开机启动、Timer、启动错误、内核警告与项目操作审计 |
+| **软件管理** | 按 ID、名称、分类和说明搜索；查看安装状态；单项安装或移除 66 个常用软件条目 |
+| **应用与容器** | Web、数据库、缓存与容器服务概览；Docker 容器、镜像、资源、Compose、存储卷、网络和安全清理 |
+| **备份与恢复** | 自动配置快照、手动 `/etc` 文件快照、备份清单检查与单文件恢复 |
+
+普通软件条目精确映射一个 APT 包。Docker 与 Caddy 使用各自的软件仓库流程，参考 [Docker Engine 安装文档](https://docs.docker.com/engine/install/)与 [Caddy 安装文档](https://caddyserver.com/docs/install)。
+
+## 命令参考
+
+### 查询与导航
 
 ```bash
-sudo serverctl install jq
-sudo serverctl install docker
-sudo serverctl remove jq
+serverctl status                 # 系统仪表盘
+serverctl doctor                 # 环境检查
+serverctl ports                  # 监听端口
+serverctl system                 # 系统管理中心
+serverctl network                # 网络与端口中心
+serverctl security               # 安全中心
+serverctl services               # 服务与日志中心
+serverctl apps                   # 应用与容器中心
+serverctl backups                # 备份与恢复中心
+serverctl about                  # 版本和安装路径
+serverctl version                # 版本号
 ```
 
-即使从命令行发起，实际修改前仍会要求确认。`serverctl install curl jq` 会被拒绝。
-
-预览系统修改：
+### 软件管理
 
 ```bash
-sudo serverctl --dry-run install docker
+serverctl list                   # 完整软件目录
+serverctl list python            # 按关键词查询
+sudo serverctl install jq        # 安装一个软件
+sudo serverctl remove jq         # 移除一个软件
+```
+
+`install` 与 `remove` 只接受一个软件 ID。所有实际修改仍需人工确认。
+
+### 操作预览
+
+```bash
 sudo serverctl --dry-run
+sudo serverctl --dry-run install docker
 ```
 
-## 安全与恢复
+`--dry-run` 展示将执行的系统命令，不写入配置、不安装软件，也不创建审计记录。
 
-- SSH 向导会检查端口占用和公钥，写入独立 drop-in，并用 `sshd -t` 验证；验证失败立即恢复。
-- UFW 向导会先识别并放行当前 SSH 端口，降低远程锁死风险。
-- BBR 只在当前内核支持时启用，不写入激进的“万能优化”参数。
-- 软件安装、服务控制和配置修改会写入审计日志。
-- 被修改的现有配置会保存在带清单的时间戳快照中，可在交互界面恢复单个文件。
-- 安装器拒绝危险宽泛目录、符号链接安装目录和属于其他程序的命令入口。
-- Docker 发布的容器端口可能绕过 UFW 规则；项目会在 Docker 中心提示这一点，但不会替用户自动改写 Docker 防火墙策略。
+## 安全模型
 
-修改 SSH、防火墙或网络参数前，仍建议保留 VPS 服务商控制台并创建实例快照。
+| 边界 | 行为 |
+| --- | --- |
+| 权限 | 查询操作可由普通用户运行；系统修改在执行点检查 root 权限 |
+| 确认 | 修改前显示目标和影响范围，默认答案为拒绝 |
+| 配置备份 | 修改已有文件前写入 `/var/backups/server-toolkit/<snapshot>/` 并生成 manifest |
+| SSH | 使用独立 drop-in，执行 `sshd -t`；验证或服务重启失败时恢复旧配置 |
+| 防火墙 | 启用 UFW 前保留当前 SSH 端口；其他端口必须显式添加 |
+| 审计 | root 修改记录到 `/var/log/server-toolkit/actions.log` |
+| 安装升级 | 在同一父目录暂存并原子替换；失败时恢复上一安装目录 |
+| 卸载 | 只删除能够确认属于项目的路径，不猜测性删除业务软件或系统设置 |
+
+> [!WARNING]
+> 修改 SSH、防火墙、路由或存储前，应保留 VPS 服务商控制台并创建实例快照。Docker 发布的容器端口可能绕过 UFW，需要结合云防火墙与 `DOCKER-USER` 链评估实际暴露面。
+
+## 数据与路径
+
+| 内容 | 默认位置 |
+| --- | --- |
+| 程序目录 | `/opt/server-toolkit` |
+| 命令入口 | `/usr/local/bin/serverctl` |
+| 配置快照 | `/var/backups/server-toolkit` |
+| 操作审计 | `/var/log/server-toolkit/actions.log` |
+| 项目状态 | `/var/lib/server-toolkit` |
+
+安装器会将实际安装路径写入 `config/installation.conf`，以确保自定义路径也能被正确升级和卸载。
 
 ## 项目结构
 
 ```text
 server-toolkit/
-├── bin/serverctl          # 唯一运行入口
-├── config/software.tsv    # 单项软件目录
-├── scripts/install.sh     # 完整安装与卸载逻辑
-├── src/core/              # 运行时、UI、平台、备份、软件目录
-├── src/features/          # 独立功能中心
-│   └── apps/docker.sh     # 应用与容器下的 Docker 实现
-├── tests/                 # 离线单元与边界测试
-├── install.sh             # 稳定的下载/安装引导器
-└── VERSION                # 唯一版本号
+├── bin/
+│   └── serverctl                # CLI、参数解析与顶层导航
+├── config/
+│   └── software.tsv             # 声明式单项软件目录
+├── scripts/
+│   ├── install.sh               # 安装、原子升级与卸载
+│   └── check.sh                 # 本地和 CI 检查入口
+├── src/
+│   ├── core/                    # 运行时、UI、平台、备份与软件目录
+│   └── features/
+│       ├── apps/
+│       │   └── docker.sh        # Docker 独立应用实现
+│       └── *.sh                 # 系统、网络、安全、服务等功能中心
+├── tests/                       # 离线单元测试与安全边界测试
+├── install.sh                   # 稳定的一键安装引导入口
+└── VERSION                      # 唯一版本来源
 ```
 
-为什么根目录仍有 `install.sh`？因为远程安装需要一个长期稳定、容易记忆的 URL。它只负责定位本地安装器或下载 `scripts/install.sh`，不包含业务逻辑。`serverctl` 属于可执行程序，所以放在 `bin/`；功能实现全部位于 `src/`。
+完整设计约束与扩展规范见 [`docs/DESIGN.md`](docs/DESIGN.md)，漏洞报告流程见 [`SECURITY.md`](SECURITY.md)。
 
-详细边界与扩展方法见 [设计文档](docs/DESIGN.md)。
+## 支持范围
+
+| 系统 | 版本 |
+| --- | --- |
+| Debian | 11 / 12 / 13 |
+| Ubuntu | 22.04 LTS / 24.04 LTS |
+| 架构 | amd64 / arm64 |
+| Init | systemd |
+
+当前不提供 RHEL 系、Alpine、非 systemd 系统或衍生发行版的兼容承诺。
+
+## 更新
+
+重新运行安装命令即可完成原子升级：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/heads/main/install.sh)
+```
 
 ## 卸载
-
-可在 `系统管理 → 卸载本项目` 中选择，也可以直接执行：
 
 ```bash
 sudo serverctl uninstall
 ```
 
-卸载提供两种模式：
+卸载模式：
 
-- 仅卸载程序：删除 `/opt/server-toolkit` 和属于本项目的命令链接，保留日志与备份。
-- 彻底清除项目数据：额外删除 `/var/backups/server-toolkit`、`/var/log/server-toolkit` 和 `/var/lib/server-toolkit`。
+1. **仅卸载程序**：删除程序目录和项目命令入口，保留日志与配置快照。
+2. **彻底清除项目数据**：额外删除项目日志、快照和状态目录。
 
-为了避免破坏业务，卸载不会自动删除通过项目安装的软件，也不会猜测性回滚主机名、SSH、防火墙、Swap 等系统设置。需要恢复配置时，应先在备份中心选择明确快照。
+通过 Server Toolkit 安装的软件，以及主机名、SSH、UFW、Swap 等系统状态不会被自动删除或猜测性回滚。需要恢复配置时，应先从备份中心选择明确快照。
 
-## 开发与检查
+## 开发
 
 ```bash
+git clone https://github.com/Elainaicey/server-toolkit.git
+cd server-toolkit
 bash scripts/check.sh
 ```
 
-检查包括 Bash 语法、ShellCheck（若已安装）、单元测试、软件目录格式和 CLI 冒烟测试。贡献约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+检查流程覆盖 Bash 语法、ShellCheck、单元测试、目录结构、软件目录格式与 CLI 冒烟测试。贡献要求见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
+---
+
+<div align="center">
+  <sub>Server Toolkit 0.1.0 · Built for deliberate VPS operations</sub>
+</div>

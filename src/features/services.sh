@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 
-services_running() { ui_header "运行中的服务"; systemctl --type=service --state=running --no-pager --no-legend 2>/dev/null | sed -n '1,100p'; }
-services_failed() { ui_header "失败的服务"; systemctl --failed --no-pager 2>/dev/null || true; }
+services_running() { ui_page "运行中的服务" "最多显示前 100 个 active systemd 服务"; systemctl --type=service --state=running --no-pager --no-legend 2>/dev/null | sed -n '1,100p'; }
+services_failed() { ui_page "失败的服务" "需要优先检查的 failed systemd 单元"; systemctl --failed --no-pager 2>/dev/null || true; }
 
 services_boot_errors() {
-  ui_header "本次启动的错误日志"
+  ui_page "本次启动的错误日志" "当前 boot 的 error 级别 Journal"
   journalctl -b -p err --no-pager -n 120 2>/dev/null || ui_empty "无法读取 Journal"
 }
 
 services_timers() {
-  ui_header "systemd Timer"
+  ui_page "systemd Timer" "所有计划运行的 Timer 单元"
   systemctl list-timers --all --no-pager 2>/dev/null || ui_empty "无法读取 Timer"
 }
 
 services_journal_info() {
-  ui_header "Journal 状态"
+  ui_page "Journal 状态" "磁盘占用和本次启动的内核警告"
   journalctl --disk-usage 2>/dev/null || true
   ui_section "最近的内核警告"
   journalctl -k -b -p warning --no-pager -n 80 2>/dev/null || ui_empty "没有可显示的内核警告"
@@ -22,7 +22,7 @@ services_journal_info() {
 
 services_logs() {
   local service="$1"
-  ui_header "$service 日志"
+  ui_page "$service 日志" "最近 100 条 Journal"
   journalctl -u "$service" -n 100 --no-pager 2>/dev/null || warn "无法读取日志。"
 }
 
@@ -36,8 +36,7 @@ services_select() {
     state="$(service_state "$service")"
     enabled="$(systemctl is-enabled "$service" 2>/dev/null || true)"
     enabled="${enabled:-disabled}"
-    ui_clear
-    ui_header "$service"
+    ui_page "服务管理 / $service" "状态、日志、生命周期与开机启动"
     ui_kv "状态" "$state"
     ui_kv "开机启动" "$enabled"
     ui_item 1 "查看状态"
@@ -74,7 +73,7 @@ services_select() {
 }
 
 services_audit_log() {
-  ui_header "Server Toolkit 操作记录"
+  ui_page "项目操作记录" "最近 100 条系统修改审计"
   if [[ -r "$AUDIT_LOG" ]]; then
     tail -n 100 "$AUDIT_LOG"
   else
@@ -85,8 +84,7 @@ services_audit_log() {
 services_menu() {
   local choice
   while true; do
-    ui_clear
-    ui_header "服务与日志"
+    ui_page "服务与日志" "systemd 单元、Timer、Journal 与项目操作审计"
     ui_item 1 "失败的服务" "优先处理异常单元"
     ui_item 2 "运行中的服务"
     ui_item 3 "管理一个服务" "状态、日志、启动、停止与开机启动"

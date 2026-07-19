@@ -4,7 +4,7 @@ docker_require() { command_exists docker || { warn "Docker 未安装，可在软
 
 docker_overview() {
   docker_require || return 1
-  ui_header "Docker 概览"
+  ui_page "Docker 概览" "Engine、运行中容器和磁盘占用"
   docker version --format 'Engine: {{.Server.Version}}' 2>/dev/null || docker --version
   printf '\n容器：\n'; docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || true
   printf '\n磁盘占用：\n'; docker system df 2>/dev/null || true
@@ -12,25 +12,25 @@ docker_overview() {
 
 docker_containers() {
   docker_require || return 1
-  ui_header "全部容器"
+  ui_page "全部容器" "名称、镜像、状态和端口映射"
   docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'
 }
 
 docker_images() {
   docker_require || return 1
-  ui_header "镜像"
+  ui_page "Docker 镜像" "仓库、标签、镜像 ID、大小和创建时间"
   docker images --format 'table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}\t{{.CreatedSince}}'
 }
 
 docker_resources() {
   docker_require || return 1
-  ui_header "容器资源"
+  ui_page "容器资源" "单次采样 CPU、内存、网络和块设备 IO"
   docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}' 2>/dev/null || warn "无法读取容器资源。"
 }
 
 docker_storage() {
   docker_require || return 1
-  ui_header "Docker 存储与网络"
+  ui_page "Docker 存储与网络" "存储卷、虚拟网络与磁盘占用"
   ui_section "存储卷"
   docker volume ls
   ui_section "网络"
@@ -41,7 +41,7 @@ docker_storage() {
 
 docker_compose_projects() {
   docker_require || return 1
-  ui_header "Compose 项目"
+  ui_page "Compose 项目" "Docker Compose 项目与运行状态"
   if docker compose version >/dev/null 2>&1; then
     docker compose ls --all
   else
@@ -51,7 +51,7 @@ docker_compose_projects() {
 
 docker_cleanup() {
   docker_require || return 1
-  ui_header "Docker 安全清理"
+  ui_page "Docker 安全清理" "清理未使用对象，但始终保留存储卷"
   docker system df 2>/dev/null || true
   ui_note "只清理已停止容器、未使用网络、悬空镜像和构建缓存；不会删除存储卷。"
   confirm "执行 docker system prune？" || return 0
@@ -65,7 +65,7 @@ docker_container_action() {
   local container action
   container="$(read_input "容器名称或 ID" "")"; [[ -n "$container" ]] || return 0
   docker inspect "$container" >/dev/null 2>&1 || { warn "没有找到容器：$container"; return 1; }
-  ui_header "容器 $container"
+  ui_page "容器 / $container" "日志、检查与生命周期操作"
   ui_item 1 "查看日志"
   ui_item 2 "检查详情"
   ui_item 3 "启动"
@@ -93,8 +93,7 @@ docker_container_action() {
 docker_menu() {
   local choice
   while true; do
-    ui_clear
-    ui_header "Docker"
+    ui_page "应用与容器 / Docker" "容器生命周期、资源、Compose、网络与存储"
     if command_exists docker; then ui_kv "服务" "$(service_state docker.service)"; else ui_empty "Docker 未安装"; fi
     printf '%b发布容器端口可能绕过 UFW；公网服务请同时检查 Docker 防火墙规则。%b\n\n' "$DIM" "$NC"
     ui_item 1 "Docker 概览"
