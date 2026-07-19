@@ -23,10 +23,26 @@ docker_configure_daemon() {
     log_info "[DRY-RUN] 写入/更新 /etc/docker/daemon.json"
     return 0
   fi
-  if [[ -s /etc/docker/daemon.json && -x "$(command -v jq || true)" ]]; then
+  if [[ -s /etc/docker/daemon.json ]]; then
+    if ! command_exists jq; then
+      log_info "合并现有 Docker 配置需要 jq，正在单独安装。"
+      pkg_update_index
+      pkg_install_exact jq || { log_warn "无法安装 jq，已保留原 daemon.json。"; return 1; }
+    fi
+    if ! jq empty /etc/docker/daemon.json >/dev/null 2>&1; then
+      log_warn "/etc/docker/daemon.json 不是有效 JSON，已保留原文件，请手动修复。"
+      return 1
+    fi
     local tmp
     tmp="$(mktemp)"
-    jq '. + {"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}' /etc/docker/daemon.json > "$tmp" && mv "$tmp" /etc/docker/daemon.json || rm -f "$tmp"
+    if jq '. + {"log-driver":"json-file","log-opts":{"max-size":"10m","max-file":"3"}}' /etc/docker/daemon.json > "$tmp"; then
+      mv "$tmp" /etc/docker/daemon.json
+      chmod 0644 /etc/docker/daemon.json
+    else
+      rm -f "$tmp"
+      log_warn "合并 Docker 配置失败，已保留原文件。"
+      return 1
+    fi
   else
     cat > /etc/docker/daemon.json <<'JSON'
 {
@@ -46,19 +62,26 @@ docker_install_official() {
   detect_system
   log_step "安装 Docker"
   if [[ "$OS_FAMILY" == "debian" && ( "$OS_ID" == "debian" || "$OS_ID" == "ubuntu" ) ]]; then
+    pkg_update_index
     pkg_install ca-certificates curl gnupg
     if [[ "$DRY_RUN" -eq 1 ]]; then
       log_info "[DRY-RUN] 配置 Docker 官方 apt 仓库"
     else
       install -m 0755 -d /etc/apt/keyrings
-      curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" -o /etc/apt/keyrings/docker.asc || {
+      local docker_gpg_tmp
+      docker_gpg_tmp="$(mktemp)"
+      if ! curl -fsSL "https://download.docker.com/linux/${OS_ID}/gpg" -o "$docker_gpg_tmp"; then
+        rm -f "$docker_gpg_tmp"
         log_warn "Docker 官方 GPG 下载失败，回退到发行版仓库包。"
         pkg_install docker.io docker-compose-plugin
         return 0
-      }
-      chmod a+r /etc/apt/keyrings/docker.asc
+      fi
+      backup_file /etc/apt/keyrings/docker.asc
+      install -m 0644 "$docker_gpg_tmp" /etc/apt/keyrings/docker.asc
+      rm -f "$docker_gpg_tmp"
       local codename="${OS_CODENAME:-}"
       [[ -n "$codename" ]] || { log_warn "无法识别发行版代号，回退到发行版仓库包。"; pkg_install docker.io docker-compose-plugin; return 0; }
+      backup_file /etc/apt/sources.list.d/docker.sources
       cat > /etc/apt/sources.list.d/docker.sources <<DOCKER_APT
 Types: deb
 URIs: https://download.docker.com/linux/${OS_ID}
@@ -68,15 +91,19 @@ Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/docker.asc
 DOCKER_APT
     fi
+    pkg_invalidate_index
     pkg_update_index
-    pkg_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    pkg_install_exact docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   else
+    pkg_update_index
     [[ "$PM" == "dnf" ]] && pkg_install dnf-plugins-core || pkg_install yum-utils
     local repo_os="centos"
     [[ "$OS_ID" == "fedora" ]] && repo_os="fedora"
     [[ "$OS_ID" == "rhel" ]] && repo_os="rhel"
     run "$PM" config-manager --add-repo "https://download.docker.com/linux/${repo_os}/docker-ce.repo" || true
-    pkg_install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    pkg_invalidate_index
+    pkg_update_index
+    pkg_install_exact docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   fi
   systemctl list-unit-files | grep -q '^docker\.service' && run systemctl enable --now docker || true
   docker_configure_daemon

@@ -65,6 +65,34 @@ run() {
   fi
 }
 
+validate_paths() {
+  [[ "$INSTALL_DIR" == /* ]] || die "安装目录必须是绝对路径：$INSTALL_DIR"
+  [[ "$INSTALL_DIR" != *'/../'* && "$INSTALL_DIR" != */.. && "$INSTALL_DIR" != *'/./'* && "$INSTALL_DIR" != */. ]] || die "安装目录包含不安全的路径段：$INSTALL_DIR"
+  case "$INSTALL_DIR" in
+    /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
+      die "拒绝使用过于宽泛的安装目录：$INSTALL_DIR"
+      ;;
+  esac
+  [[ "${INSTALL_DIR#/}" == */* ]] || die "安装目录至少需要两级路径：$INSTALL_DIR"
+  [[ ! -L "$INSTALL_DIR" ]] || die "安装目录不能是符号链接：$INSTALL_DIR"
+  if [[ -d "$INSTALL_DIR" ]] && find "$INSTALL_DIR" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    [[ -f "$INSTALL_DIR/serverctl.sh" && -d "$INSTALL_DIR/lib" && -d "$INSTALL_DIR/modules" ]] || die "非空安装目录不属于 Server Toolkit，拒绝覆盖：$INSTALL_DIR"
+  fi
+
+  [[ "$BIN_PATH" == /* && "$BIN_PATH" != "/" ]] || die "命令入口必须是绝对文件路径：$BIN_PATH"
+  [[ ! -d "$BIN_PATH" ]] || die "命令入口不能是目录：$BIN_PATH"
+  if [[ "$UNINSTALL" -eq 0 ]]; then
+    if [[ -e "$BIN_PATH" && ! -L "$BIN_PATH" ]]; then
+      die "命令入口已存在且不是符号链接，拒绝覆盖：$BIN_PATH"
+    fi
+    if [[ -L "$BIN_PATH" ]]; then
+      local current_target
+      current_target="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
+      [[ "$current_target" == "$INSTALL_DIR/serverctl.sh" ]] || die "命令入口指向其他程序，拒绝覆盖：$BIN_PATH -> ${current_target:-未知目标}"
+    fi
+  fi
+}
+
 confirm_uninstall() {
   [[ "$ASSUME_YES" -eq 1 ]] && return 0
   local answer=""
@@ -171,6 +199,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+validate_paths
 [[ "${EUID}" -eq 0 ]] || die "请使用 root 运行：sudo bash install.sh"
 if [[ "$UNINSTALL" -eq 1 ]]; then
   uninstall_installed_toolkit
@@ -200,11 +229,13 @@ else
 fi
 
 [[ -f "$SRC_DIR/serverctl.sh" ]] || die "源码中缺少 serverctl.sh"
-[[ -d "$SRC_DIR/lib" && -d "$SRC_DIR/modules" && -d "$SRC_DIR/profiles" ]] || die "源码目录不完整"
+[[ -d "$SRC_DIR/lib" && -d "$SRC_DIR/modules" && -d "$SRC_DIR/profiles" && -f "$SRC_DIR/catalog/packages.tsv" ]] || die "源码目录不完整"
 
 log "正在安装到 $INSTALL_DIR"
 run mkdir -p "$INSTALL_DIR"
-run cp -a "$SRC_DIR"/. "$INSTALL_DIR"/
+for entry in serverctl.sh install.sh lib modules profiles catalog README.md CHANGELOG.md; do
+  [[ -e "$SRC_DIR/$entry" ]] && run cp -a "$SRC_DIR/$entry" "$INSTALL_DIR"/
+done
 run chmod +x "$INSTALL_DIR/serverctl.sh" "$INSTALL_DIR/install.sh"
 run find "$INSTALL_DIR" -type f -name '*.sh' -exec chmod 0644 {} \;
 run chmod +x "$INSTALL_DIR/serverctl.sh" "$INSTALL_DIR/install.sh"

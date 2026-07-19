@@ -18,6 +18,7 @@ ssh_write_config() {
   local disable_password="$2"
   local disable_root="$3"
   local conf="/etc/ssh/sshd_config.d/99-server-toolkit.conf"
+  [[ -z "$port" ]] || valid_port "$port" || { log_warn "SSH 端口无效：$port（有效范围 1-65535）"; return 1; }
   ssh_ensure_include
   backup_file "$conf"
   if [[ "$disable_password" -eq 1 ]] && ! ssh_public_key_exists; then
@@ -61,8 +62,8 @@ ssh_apply_profile_hardening() {
   local disable_password="${2:-0}"
   local disable_root="${3:-0}"
   detect_system
-  [[ -n "$port" ]] && firewall_allow_port "$port"
-  firewall_allow_port "$SSH_PORT"
+  [[ -n "$port" ]] && firewall_allow_port_if_present "$port"
+  firewall_allow_port_if_present "$SSH_PORT"
   ssh_write_config "$port" "$disable_password" "$disable_root"
   ssh_restart_checked
   if [[ "${4:-}" == "fail2ban" ]]; then
@@ -73,6 +74,7 @@ ssh_apply_profile_hardening() {
 ssh_install_fail2ban() {
   local port="${1:-$SSH_PORT}"
   log_step "安装并配置 SSH fail2ban"
+  pkg_update_index
   [[ "$OS_FAMILY" == "rhel" ]] && pkg_install epel-release
   pkg_install fail2ban
   safe_mkdir /etc/fail2ban/jail.d
@@ -105,6 +107,11 @@ ssh_menu() {
   local new_port="" disable_password=0 disable_root=0
   if ask_yes_no "是否修改 SSH 端口？" "N"; then
     new_port="$(ask_input "新的 SSH 端口" "2222")"
+    if ! valid_port "$new_port"; then
+      log_warn "SSH 端口无效：$new_port（有效范围 1-65535）"
+      pause
+      return 0
+    fi
   fi
   ask_yes_no "是否禁用 SSH 密码登录？" "N" && disable_password=1
   ask_yes_no "是否禁止 root 直接 SSH 登录？" "N" && disable_root=1

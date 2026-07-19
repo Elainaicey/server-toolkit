@@ -2,6 +2,10 @@
 
 PKG_INDEX_UPDATED=0
 
+pkg_invalidate_index() {
+  PKG_INDEX_UPDATED=0
+}
+
 pkg_installed() {
   local pkg="$1"
   case "$OS_FAMILY" in
@@ -70,6 +74,40 @@ pkg_install() {
       rhel) run "$PM" install -y "$pkg" || log_warn "安装失败：$pkg" ;;
     esac
   done
+}
+
+# 面向精确安装入口：任一软件包失败都会返回非零，便于 CLI 和测试感知失败。
+# 旧的 pkg_install 保持宽容行为，避免现有 profile 因单个可选包缺失而中断。
+pkg_install_exact() {
+  local pkg
+  local failures=0
+  for pkg in "$@"; do
+    [[ -n "$pkg" ]] || continue
+    if pkg_installed "$pkg"; then
+      log_info "已安装：$pkg"
+      continue
+    fi
+    log_info "正在安装：$pkg"
+    case "$OS_FAMILY" in
+      debian)
+        if ! apt_get install -y "$pkg"; then
+          log_warn "安装失败：$pkg"
+          failures=$((failures + 1))
+        fi
+        ;;
+      rhel)
+        if ! run "$PM" install -y "$pkg"; then
+          log_warn "安装失败：$pkg"
+          failures=$((failures + 1))
+        fi
+        ;;
+      *)
+        log_warn "不支持的软件包管理器：${OS_FAMILY:-unknown}"
+        return 1
+        ;;
+    esac
+  done
+  (( failures == 0 ))
 }
 
 pkg_install_one_of() {

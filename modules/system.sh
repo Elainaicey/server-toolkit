@@ -29,6 +29,7 @@ system_set_hostname() {
 system_set_locale() {
   local locale_name="$1"
   [[ -n "$locale_name" ]] || return 0
+  pkg_update_index
   log_step "设置系统 Locale：$locale_name"
   if [[ "$OS_FAMILY" == "debian" ]]; then
     pkg_install locales
