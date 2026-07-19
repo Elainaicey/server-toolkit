@@ -9,8 +9,12 @@ INSTALL_DIR="${SERVER_TOOLKIT_INSTALL_DIR:-/opt/server-toolkit}"
 BIN_PATH="${SERVER_TOOLKIT_BIN_PATH:-/usr/local/bin/serverctl}"
 DRY_RUN=0
 UNINSTALL=0
+PURGE_DATA=0
 TEMP_ROOT=""
 STAGE_DIR=""
+BACKUP_ROOT="${SERVER_TOOLKIT_BACKUP_ROOT:-/var/backups/server-toolkit}"
+LOG_ROOT="${SERVER_TOOLKIT_LOG_ROOT:-/var/log/server-toolkit}"
+STATE_ROOT="${SERVER_TOOLKIT_STATE_ROOT:-/var/lib/server-toolkit}"
 
 usage() {
   cat <<EOF
@@ -25,7 +29,8 @@ Server Toolkit 安装器
   --dir PATH            安装目录，默认 $INSTALL_DIR
   --bin PATH            命令入口，默认 $BIN_PATH
   --dry-run             只显示将要执行的安装或卸载
-  --uninstall           卸载程序文件，保留操作日志和配置备份
+  --uninstall           卸载程序文件，默认保留操作日志和配置备份
+  --purge-data          卸载时同时删除本项目的日志、备份和状态数据
   -h, --help            显示帮助
 EOF
 }
@@ -37,7 +42,7 @@ read_tty() {
   local prompt="$1" answer=""
   if [[ -t 0 ]]; then
     read -r -p "$prompt" answer || true
-  elif [[ -r /dev/tty ]]; then
+  elif [[ -t 2 && -r /dev/tty ]]; then
     read -r -p "$prompt" answer </dev/tty || true
   fi
   printf '%s' "$answer"
@@ -84,10 +89,13 @@ while [[ $# -gt 0 ]]; do
     --bin) [[ -n "${2:-}" ]] || die "--bin 缺少值"; BIN_PATH="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
+    --purge-data) PURGE_DATA=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "未知参数：$1" ;;
   esac
 done
+
+[[ "$PURGE_DATA" -eq 0 || "$UNINSTALL" -eq 1 ]] || die "--purge-data 只能和 --uninstall 一起使用"
 
 [[ "$EUID" -eq 0 ]] || die "请使用 root 运行：sudo bash install.sh"
 safe_install_path "$INSTALL_DIR" || die "不安全的安装目录：$INSTALL_DIR"
@@ -95,23 +103,46 @@ safe_install_path "$INSTALL_DIR" || die "不安全的安装目录：$INSTALL_DIR
 [[ ! -L "$INSTALL_DIR" ]] || die "安装目录不能是符号链接：$INSTALL_DIR"
 
 if [[ "$UNINSTALL" -eq 1 ]]; then
-  if [[ ! -d "$INSTALL_DIR" ]]; then
-    info "未找到安装目录。"
-    exit 0
+  if [[ -d "$INSTALL_DIR" ]]; then
+    is_toolkit_dir "$INSTALL_DIR" || die "目录不像 Server Toolkit，拒绝删除：$INSTALL_DIR"
   fi
-  is_toolkit_dir "$INSTALL_DIR" || die "目录不像 Server Toolkit，拒绝删除：$INSTALL_DIR"
-  confirm "删除 $INSTALL_DIR 和它的命令入口？" || { info "已取消。"; exit 0; }
+  if [[ "$PURGE_DATA" -eq 1 ]]; then
+    safe_install_path "$BACKUP_ROOT" || die "不安全的备份目录：$BACKUP_ROOT"
+    safe_install_path "$LOG_ROOT" || die "不安全的日志目录：$LOG_ROOT"
+    safe_install_path "$STATE_ROOT" || die "不安全的状态目录：$STATE_ROOT"
+    info "彻底清除会删除："
+    info "  程序：$INSTALL_DIR"
+    info "  命令：$BIN_PATH"
+    info "  备份：$BACKUP_ROOT"
+    info "  日志：$LOG_ROOT"
+    info "  状态：$STATE_ROOT"
+    info "已安装的软件和系统配置不会自动删除。"
+    confirm "确认彻底清除 Server Toolkit 自身文件和数据？" || { info "已取消。"; exit 0; }
+  else
+    confirm "删除 $INSTALL_DIR 和它的命令入口？日志与备份将保留。" || { info "已取消。"; exit 0; }
+  fi
   if [[ "$DRY_RUN" -eq 1 ]]; then
     info "将删除 $INSTALL_DIR"
     info "若 $BIN_PATH 指向本项目，也将删除该链接"
+    if [[ "$PURGE_DATA" -eq 1 ]]; then
+      info "将删除 $BACKUP_ROOT、$LOG_ROOT 和 $STATE_ROOT"
+    fi
     exit 0
   fi
   resolved_bin="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
-  if [[ "$resolved_bin" == "$INSTALL_DIR/bin/serverctl" ]]; then
+  raw_bin="$(readlink "$BIN_PATH" 2>/dev/null || true)"
+  if [[ "$resolved_bin" == "$INSTALL_DIR/bin/serverctl" || "$raw_bin" == "$INSTALL_DIR/bin/serverctl" ]]; then
     rm -f -- "$BIN_PATH"
   fi
-  rm -rf -- "$INSTALL_DIR"
-  info "卸载完成；/var/backups/server-toolkit 与 /var/log/server-toolkit 未被删除。"
+  if [[ -d "$INSTALL_DIR" ]]; then
+    rm -rf -- "$INSTALL_DIR"
+  fi
+  if [[ "$PURGE_DATA" -eq 1 ]]; then
+    rm -rf -- "$BACKUP_ROOT" "$LOG_ROOT" "$STATE_ROOT"
+    info "彻底清除完成；软件和系统配置保持现状。"
+  else
+    info "卸载完成；$BACKUP_ROOT 与 $LOG_ROOT 未被删除。"
+  fi
   exit 0
 fi
 
@@ -165,6 +196,14 @@ for entry in bin src config scripts install.sh VERSION README.md CHANGELOG.md; d
 done
 chmod 0755 "$STAGE_DIR/bin/serverctl" "$STAGE_DIR/install.sh" "$STAGE_DIR/scripts/install.sh"
 find "$STAGE_DIR/src" -type f -name '*.sh' -exec chmod 0644 {} \;
+{
+  printf 'SERVER_TOOLKIT_INSTALL_DIR=%q\n' "$INSTALL_DIR"
+  printf 'SERVER_TOOLKIT_BIN_PATH=%q\n' "$BIN_PATH"
+  printf 'SERVER_TOOLKIT_BACKUP_ROOT=%q\n' "$BACKUP_ROOT"
+  printf 'SERVER_TOOLKIT_LOG_ROOT=%q\n' "$LOG_ROOT"
+  printf 'SERVER_TOOLKIT_STATE_ROOT=%q\n' "$STATE_ROOT"
+} >"$STAGE_DIR/config/installation.conf"
+chmod 0644 "$STAGE_DIR/config/installation.conf"
 is_toolkit_dir "$STAGE_DIR" || die "暂存的安装内容不完整"
 
 old_dir=""

@@ -80,6 +80,55 @@ system_package_health() {
 
 system_disk_usage() { ui_header "磁盘与目录"; df -hT; printf '\n主要目录：\n'; du -x -h --max-depth=1 /var /home 2>/dev/null | sort -h | tail -n 20 || true; }
 
+system_processes() {
+  ui_header "进程与资源"
+  ui_section "内存占用最高"
+  ps -eo pid,user,%cpu,%mem,rss,stat,comm --sort=-%mem 2>/dev/null | sed -n '1,16p'
+  ui_section "CPU 占用最高"
+  ps -eo pid,user,%cpu,%mem,etime,stat,comm --sort=-%cpu 2>/dev/null | sed -n '1,16p'
+}
+
+system_user_sessions() {
+  ui_header "用户与登录会话"
+  ui_section "当前会话"
+  who 2>/dev/null || true
+  ui_section "最近登录"
+  last -n 20 2>/dev/null || ui_empty "没有可显示的登录记录"
+  ui_section "可登录账户"
+  awk -F: '$7 !~ /(nologin|false)$/ {printf "  %-18s uid=%s shell=%s\n",$1,$3,$7}' /etc/passwd
+}
+
+system_schedules() {
+  ui_header "计划任务"
+  ui_section "即将运行的 systemd Timer"
+  systemctl list-timers --all --no-pager 2>/dev/null | sed -n '1,30p' || ui_empty "无法读取 Timer"
+  ui_section "当前用户 Crontab"
+  if command_exists crontab; then
+    crontab -l 2>/dev/null || ui_empty "当前用户没有 Crontab"
+  else
+    ui_empty "未安装 cron"
+  fi
+  ui_section "系统 Cron 目录"
+  find /etc/cron.d /etc/cron.daily /etc/cron.hourly /etc/cron.weekly /etc/cron.monthly \
+    -maxdepth 1 -type f -printf '  %p\n' 2>/dev/null | sort | sed -n '1,40p'
+}
+
+system_reboot_status() {
+  ui_header "重启与内核状态"
+  ui_kv "当前内核" "$(uname -r)"
+  if [[ -f /var/run/reboot-required ]]; then
+    doctor_result warn "系统提示需要重启"
+    if [[ -r /var/run/reboot-required.pkgs ]]; then
+      ui_section "触发重启提示的软件包"
+      sed -n '1,30p' /var/run/reboot-required.pkgs
+    fi
+  else
+    doctor_result pass "当前没有重启提示"
+  fi
+  ui_section "最近启动"
+  journalctl --list-boots --no-pager 2>/dev/null | tail -n 8 || true
+}
+
 system_cleanup() {
   ui_header "安全清理"
   ui_kv "APT 缓存" "$(du -sh /var/cache/apt/archives 2>/dev/null | awk '{print $1}' || printf '未知')"
@@ -95,27 +144,42 @@ system_menu() {
   while true; do
     ui_clear
     ui_header "系统管理"
-    ui_item 1 "系统仪表盘"
-    ui_item 2 "环境检查"
-    ui_item 3 "修改主机名"
-    ui_item 4 "修改时区"
-    ui_item 5 "创建 Swap"
-    ui_item 6 "时间同步"
-    ui_item 7 "软件包状态"
-    ui_item 8 "磁盘分析"
-    ui_item 9 "安全清理"
+    ui_section "状态与诊断"
+    ui_item 1 "系统仪表盘" "资源与服务总览"
+    ui_item 2 "环境检查" "运行依赖与连通性"
+    ui_item 3 "进程与资源" "CPU、内存占用排行"
+    ui_item 4 "用户与会话" "在线用户和最近登录"
+    ui_item 5 "计划任务" "systemd Timer 与 Cron"
+    ui_item 6 "重启状态" "内核、重启提示与启动历史"
+    ui_item 7 "软件包状态" "dpkg 健康、更新与缓存"
+    ui_item 8 "磁盘分析" "文件系统与主要目录"
+    ui_section "系统设置"
+    ui_item 9 "修改主机名"
+    ui_item 10 "修改时区"
+    ui_item 11 "创建 Swap"
+    ui_item 12 "时间同步"
+    ui_item 13 "安全清理" "APT 缓存和旧 Journal"
+    ui_section "项目"
+    ui_item 14 "关于本项目"
+    ui_item 15 "卸载本项目" "程序卸载或彻底清除项目数据"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
       1) dashboard_show ;;
       2) system_doctor ;;
-      3) system_set_hostname || true ;;
-      4) system_set_timezone || true ;;
-      5) system_create_swap || true ;;
-      6) system_time_sync || true ;;
+      3) system_processes ;;
+      4) system_user_sessions ;;
+      5) system_schedules ;;
+      6) system_reboot_status ;;
       7) system_package_health ;;
       8) system_disk_usage ;;
-      9) system_cleanup || true ;;
+      9) system_set_hostname || true ;;
+      10) system_set_timezone || true ;;
+      11) system_create_swap || true ;;
+      12) system_time_sync || true ;;
+      13) system_cleanup || true ;;
+      14) toolkit_about ;;
+      15) toolkit_uninstall || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

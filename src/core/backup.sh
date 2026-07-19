@@ -31,7 +31,10 @@ backup_manifest() {
 }
 
 backup_restore() {
-  local snapshot="$1" target="$2" source="$BACKUP_ROOT/$snapshot$target"
+  local snapshot target source
+  snapshot="$1"
+  target="$2"
+  source="$BACKUP_ROOT/$snapshot$target"
   backup_manifest "$snapshot" | grep -Fxq "$target" || die "目标不在备份清单中：$target"
   [[ -e "$source" || -L "$source" ]] || die "备份文件不存在：$source"
   backup_file "$target"

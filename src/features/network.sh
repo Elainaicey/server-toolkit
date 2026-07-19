@@ -40,6 +40,50 @@ network_port_detail() {
   fi
 }
 
+network_routes() {
+  ui_header "路由表"
+  ui_section "IPv4"
+  ip -4 route show table all 2>/dev/null || true
+  ui_section "IPv6"
+  ip -6 route show table all 2>/dev/null || true
+  ui_section "策略规则"
+  ip rule show 2>/dev/null || true
+}
+
+network_interface_stats() {
+  ui_header "网卡流量统计"
+  printf '  %-16s %16s %16s\n' "网卡" "接收" "发送"
+  awk -F '[: ]+' '
+    NR > 2 {
+      rx=$3; tx=$11
+      printf "  %-16s %12.2f MiB %12.2f MiB\n",$2,rx/1048576,tx/1048576
+    }
+  ' /proc/net/dev
+  ui_note "数据为本次开机以来的累计流量，不等同于服务商计费流量。"
+}
+
+network_target_diagnose() {
+  local target address
+  target="$(read_input "域名或 IP" "github.com")"
+  valid_network_target "$target" || { warn "目标格式无效。"; return 1; }
+  ui_header "目标诊断 · $target"
+  ui_section "解析结果"
+  getent ahosts "$target" 2>/dev/null | awk '!seen[$1]++ {print "  "$0}' | sed -n '1,12p' || true
+  address="$(getent ahostsv4 "$target" 2>/dev/null | awk 'NR==1{print $1}')"
+  if [[ -z "$address" ]]; then
+    address="$(getent ahostsv6 "$target" 2>/dev/null | awk 'NR==1{print $1}')"
+  fi
+  [[ -n "$address" ]] || { warn "无法解析目标。"; return 1; }
+  ui_section "路由选择"
+  ip route get "$address" 2>/dev/null || ip -6 route get "$address" 2>/dev/null || true
+  ui_section "延迟与丢包"
+  if command_exists ping; then
+    ping -c 3 -W 2 "$address" 2>/dev/null || warn "Ping 不可达；目标也可能主动禁用 ICMP。"
+  else
+    ui_empty "未安装 ping"
+  fi
+}
+
 network_enable_bbr() {
   local available; available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
   [[ "$available" == *bbr* ]] || warn "将尝试加载 BBR 内核模块。"
@@ -96,19 +140,25 @@ network_menu() {
     ui_header "网络与端口"
     ui_item 1 "网络概览"
     ui_item 2 "连通性检查"
-    ui_item 3 "监听端口"
-    ui_item 4 "查询端口"
-    ui_item 5 "启用 BBR"
-    ui_item 6 "IP 地址优先级"
+    ui_item 3 "目标诊断" "DNS、路由、延迟与丢包"
+    ui_item 4 "路由表"
+    ui_item 5 "网卡流量" "本次开机累计统计"
+    ui_item 6 "监听端口"
+    ui_item 7 "查询端口"
+    ui_item 8 "启用 BBR"
+    ui_item 9 "IP 地址优先级"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
       1) network_show ;;
       2) network_connectivity_test ;;
-      3) network_list_ports ;;
-      4) network_port_detail || true ;;
-      5) network_enable_bbr || true ;;
-      6) network_set_address_preference || true ;;
+      3) network_target_diagnose || true ;;
+      4) network_routes ;;
+      5) network_interface_stats ;;
+      6) network_list_ports ;;
+      7) network_port_detail || true ;;
+      8) network_enable_bbr || true ;;
+      9) network_set_address_preference || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

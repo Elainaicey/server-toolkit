@@ -23,4 +23,7 @@ if backup_manifest '../etc' >/dev/null 2>&1; then
   exit 1
 fi
 
+DRY_RUN=1
+backup_restore 20260719-120000-42 /etc/example.conf >/dev/null
+
 printf 'PASS: backup\n'

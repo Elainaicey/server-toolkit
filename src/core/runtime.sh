@@ -39,12 +39,16 @@ run() {
 }
 
 read_input() {
-  local prompt="$1" default_value="${2:-}" answer="" label="$prompt"
+  local prompt default_value answer label
+  prompt="$1"
+  default_value="${2:-}"
+  answer=""
+  label="$prompt"
   [[ -n "$default_value" ]] && label+=" [$default_value]"
   label+=": "
   if [[ -t 0 ]]; then
     read -r -p "$label" answer || true
-  elif [[ -r /dev/tty ]]; then
+  elif [[ -t 2 && -r /dev/tty ]]; then
     read -r -p "$label" answer </dev/tty || true
   fi
   printf '%s' "${answer:-$default_value}"
@@ -68,6 +72,11 @@ valid_port() {
 
 valid_service_name() {
   [[ "${1:-}" =~ ^[a-zA-Z0-9@_.:-]+$ ]]
+}
+
+valid_network_target() {
+  local target="${1:-}"
+  [[ "$target" =~ ^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,252}$ || "$target" =~ ^[a-fA-F0-9:]+$ ]]
 }
 
 safe_managed_path() {

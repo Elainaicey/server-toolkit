@@ -9,6 +9,67 @@ security_firewall_status() {
   fi
 }
 
+security_audit() {
+  ui_header "安全基线检查"
+  local ssh_settings uid0_count
+  if command_exists ufw && ufw status 2>/dev/null | grep -q '^Status: active'; then
+    doctor_result pass "UFW 已启用"
+  else
+    doctor_result warn "主机防火墙未启用"
+  fi
+  if command_exists sshd; then
+    ssh_settings="$(sshd -T 2>/dev/null || true)"
+    if grep -q '^passwordauthentication no$' <<<"$ssh_settings"; then doctor_result pass "SSH 密码登录已禁用"; else doctor_result warn "SSH 仍允许密码登录"; fi
+    if grep -Eq '^permitrootlogin (no|prohibit-password)$' <<<"$ssh_settings"; then doctor_result pass "root 登录已限制"; else doctor_result warn "root 可直接通过 SSH 登录"; fi
+    ui_kv "SSH 端口" "$(awk '/^port /{print $2;exit}' <<<"$ssh_settings")"
+  else
+    doctor_result warn "无法检查 sshd 有效配置"
+  fi
+  uid0_count="$(awk -F: '$3==0{count++}END{print count+0}' /etc/passwd)"
+  if [[ "$uid0_count" -eq 1 ]]; then doctor_result pass "只有一个 UID 0 账户"; else doctor_result warn "检测到 $uid0_count 个 UID 0 账户"; fi
+  if command_exists fail2ban-client && fail2ban-client ping >/dev/null 2>&1; then
+    doctor_result pass "Fail2ban 正在运行"
+  else
+    doctor_result warn "Fail2ban 未安装或未运行"
+  fi
+  if [[ -f /var/run/reboot-required ]]; then doctor_result warn "系统提示需要重启"; else doctor_result pass "没有待处理的重启提示"; fi
+}
+
+security_exposed_ports() {
+  ui_header "公网监听端口"
+  if ! command_exists ss; then
+    warn "缺少 ss 命令。"
+    return 1
+  fi
+  printf '  %-8s %-28s %s\n' "协议" "监听地址" "进程"
+  ss -H -lntup 2>/dev/null | awk '
+    $5 ~ /^(0\.0\.0\.0:|\[::\]:|\*:)/ {
+      printf "  %-8s %-28s %s\n",$1,$5,substr($0,index($0,$7))
+      found=1
+    }
+    END {if(!found) print "  — 没有检测到监听所有地址的端口"}
+  '
+  ui_note "监听所有地址不代表一定可从公网访问，还需要结合云防火墙、UFW 和 Docker 规则判断。"
+}
+
+security_fail2ban() {
+  ui_header "Fail2ban 状态"
+  if ! command_exists fail2ban-client; then
+    ui_empty "Fail2ban 未安装，可在软件管理中搜索 fail2ban。"
+    return 0
+  fi
+  fail2ban-client status 2>/dev/null || { warn "Fail2ban 服务未运行。"; return 1; }
+  local jails jail
+  jails="$(fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p')"
+  if [[ -n "$jails" ]]; then
+    ui_section "Jail 详情"
+    while IFS= read -r jail; do
+      jail="${jail// /}"
+      [[ -n "$jail" ]] && fail2ban-client status "$jail" 2>/dev/null | sed -n '1,12p'
+    done < <(tr ',' '\n' <<<"$jails")
+  fi
+}
+
 security_enable_firewall() {
   local ssh_port raw old_ifs port; local ports=()
   ssh_port="$(detect_ssh_port)"
@@ -146,21 +207,27 @@ security_menu() {
   while true; do
     ui_clear
     ui_header "安全中心"
-    ui_item 1 "UFW 状态"
-    ui_item 2 "启用基础防火墙"
-    ui_item 3 "放行 TCP 端口"
-    ui_item 4 "删除端口规则"
-    ui_item 5 "SSH 安全向导"
-    ui_item 6 "SSH 登录事件"
+    ui_item 1 "安全基线检查" "防火墙、SSH、UID 0、Fail2ban 与重启"
+    ui_item 2 "公网监听端口" "识别监听所有地址的服务"
+    ui_item 3 "UFW 状态"
+    ui_item 4 "启用基础防火墙"
+    ui_item 5 "放行 TCP 端口"
+    ui_item 6 "删除端口规则"
+    ui_item 7 "SSH 安全向导"
+    ui_item 8 "SSH 登录事件"
+    ui_item 9 "Fail2ban 状态"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
-      1) security_firewall_status ;;
-      2) security_enable_firewall || true ;;
-      3) security_firewall_rule add || true ;;
-      4) security_firewall_rule delete || true ;;
-      5) security_configure_ssh || true ;;
-      6) security_auth_log ;;
+      1) security_audit ;;
+      2) security_exposed_ports || true ;;
+      3) security_firewall_status ;;
+      4) security_enable_firewall || true ;;
+      5) security_firewall_rule add || true ;;
+      6) security_firewall_rule delete || true ;;
+      7) security_configure_ssh || true ;;
+      8) security_auth_log ;;
+      9) security_fail2ban || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

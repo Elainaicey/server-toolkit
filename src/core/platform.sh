@@ -64,7 +64,7 @@ package_upgradable_count() { apt list --upgradable 2>/dev/null | sed '1d' | grep
 
 service_exists() {
   command_exists systemctl && systemctl list-unit-files --type=service --no-legend 2>/dev/null |
-    awk -v service="$1" '$1 == service { found=1; exit } END { exit !found }'
+    awk -v service="$1" '$1 == service { found=1 } END { exit !found }'
 }
 service_enable_now() {
   if service_exists "$1"; then

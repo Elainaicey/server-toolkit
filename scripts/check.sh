@@ -14,7 +14,8 @@ bash -n install.sh
 if command -v shellcheck >/dev/null 2>&1; then
   printf '[check] ShellCheck\n'
   # SC1090/SC1091: 入口根据运行时 ROOT_DIR 加载项目文件。
-  shellcheck -e SC1090,SC1091 bin/serverctl install.sh scripts/*.sh src/core/*.sh src/features/*.sh tests/*.sh
+  mapfile -t shell_files < <(find bin src scripts tests -type f \( -name '*.sh' -o -path 'bin/serverctl' \) -print | sort)
+  shellcheck -e SC1090,SC1091 install.sh "${shell_files[@]}"
 else
   printf '[check] 未安装 shellcheck，跳过静态检查\n'
 fi
@@ -34,5 +35,6 @@ printf '[check] CLI 冒烟测试\n'
 [[ "$(bash bin/serverctl version)" == "Server Toolkit 0.1.0" ]]
 bash bin/serverctl --help | grep -q '一次只接受一个软件 ID'
 bash install.sh --help | grep -q 'Server Toolkit 安装器'
+bash scripts/install.sh --help | grep -q -- '--purge-data'
 
 printf '[check] 全部通过\n'

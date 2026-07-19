@@ -10,6 +10,16 @@ done
 ROOT_DIR="${SERVER_TOOLKIT_ROOT:-$(cd -P -- "$(dirname -- "$ENTRY")/.." >/dev/null 2>&1 && pwd)}"
 CONFIG_DIR="${SERVER_TOOLKIT_CONFIG_DIR:-$ROOT_DIR/config}"
 SERVERCTL_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
+INSTALL_METADATA="$ROOT_DIR/config/installation.conf"
+if [[ -r "$INSTALL_METADATA" ]]; then
+  # 由安装器生成，只包含经过 shell 转义的安装路径。
+  # shellcheck source=/dev/null
+  . "$INSTALL_METADATA"
+  SERVER_TOOLKIT_LOG_ROOT="${SERVER_TOOLKIT_LOG_ROOT:-/var/log/server-toolkit}"
+  export SERVER_TOOLKIT_BACKUP_ROOT SERVER_TOOLKIT_LOG_ROOT SERVER_TOOLKIT_STATE_ROOT
+  SERVER_TOOLKIT_AUDIT_LOG="${SERVER_TOOLKIT_AUDIT_LOG:-$SERVER_TOOLKIT_LOG_ROOT/actions.log}"
+  export SERVER_TOOLKIT_AUDIT_LOG
+fi
 
 . "$ROOT_DIR/src/core/runtime.sh"
 . "$ROOT_DIR/src/core/ui.sh"
@@ -22,8 +32,10 @@ SERVERCTL_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 . "$ROOT_DIR/src/features/network.sh"
 . "$ROOT_DIR/src/features/security.sh"
 . "$ROOT_DIR/src/features/services.sh"
-. "$ROOT_DIR/src/features/docker.sh"
+. "$ROOT_DIR/src/features/apps/docker.sh"
+. "$ROOT_DIR/src/features/apps.sh"
 . "$ROOT_DIR/src/features/backups.sh"
+. "$ROOT_DIR/src/features/maintenance.sh"
 
 usage() {
   cat <<'EOF'
@@ -37,8 +49,14 @@ Server Toolkit 0.1.0
   serverctl install ID            安装一个软件
   serverctl remove ID             移除一个软件
   serverctl ports                 查看监听端口
+  serverctl system                打开系统管理中心
+  serverctl network               打开网络与端口中心
+  serverctl security              打开安全中心
   serverctl services              打开服务与日志中心
+  serverctl apps                  打开应用与容器中心
   serverctl backups               打开备份与恢复中心
+  serverctl about                 显示项目与安装信息
+  serverctl uninstall             卸载 Server Toolkit
   serverctl version               显示版本
 
 选项：
@@ -55,26 +73,27 @@ main_menu() {
   local choice
   while true; do
     ui_banner
-    printf '%s · %s · %s MB RAM · load %s\n\n' "$OS_NAME" "$ARCH" "$MEMORY_MB" "$LOAD_AVERAGE"
-    ui_item 1 "系统仪表盘" "资源、服务与更新状态"
-    ui_item 2 "软件管理" "搜索、安装或移除一个软件"
-    ui_item 3 "系统管理" "时间、Swap、磁盘与清理"
-    ui_item 4 "网络与端口" "连通性、监听端口与 BBR"
-    ui_item 5 "安全中心" "UFW、SSH 与登录事件"
-    ui_item 6 "服务与日志" "systemd 服务和 Journal"
-    ui_item 7 "Docker" "容器、镜像与磁盘占用"
+    ui_context "$OS_NAME · $ARCH · ${MEMORY_MB} MB RAM · load $LOAD_AVERAGE"
+    printf '\n'
+    ui_item 1 "系统仪表盘" "先了解资源、服务与更新状态"
+    ui_item 2 "系统管理" "健康、进程、用户、时间、磁盘与维护"
+    ui_item 3 "网络与端口" "连通性、目标诊断、监听端口与 BBR"
+    ui_item 4 "安全中心" "安全审计、UFW、SSH 与登录防护"
+    ui_item 5 "服务与日志" "systemd 服务、Timer、Journal 与启动错误"
+    ui_item 6 "软件管理" "搜索、安装或移除一个独立软件"
+    ui_item 7 "应用与容器" "Docker、Web、数据库和缓存服务"
     ui_item 8 "备份与恢复" "查看并恢复配置备份"
     ui_item 0 "退出"
-    printf '\n%b每个中心最多提供一层操作列表；高风险操作会再次确认。%b\n' "$DIM" "$NC"
+    ui_note "查询操作无需 root；系统修改会展示摘要、备份配置并再次确认。"
     choice="$(read_input "请选择" "1")"
     case "$choice" in
       1) dashboard_show; pause ;;
-      2) software_catalog_menu ;;
-      3) system_menu ;;
-      4) network_menu ;;
-      5) security_menu ;;
-      6) services_menu ;;
-      7) docker_menu ;;
+      2) system_menu ;;
+      3) network_menu ;;
+      4) security_menu ;;
+      5) services_menu ;;
+      6) software_catalog_menu ;;
+      7) apps_menu ;;
       8) backups_menu ;;
       0) return 0 ;;
       *) warn "未知选项：$choice"; pause ;;
@@ -128,15 +147,43 @@ main() {
       platform_detect
       network_list_ports
       ;;
+    system)
+      ((${#arguments[@]} == 0)) || die "system 不接受参数"
+      platform_detect
+      system_menu
+      ;;
+    network)
+      ((${#arguments[@]} == 0)) || die "network 不接受参数"
+      platform_detect
+      network_menu
+      ;;
+    security)
+      ((${#arguments[@]} == 0)) || die "security 不接受参数"
+      platform_detect
+      security_menu
+      ;;
     services)
       ((${#arguments[@]} == 0)) || die "services 不接受参数"
       platform_detect
       services_menu
       ;;
+    apps)
+      ((${#arguments[@]} == 0)) || die "apps 不接受参数"
+      platform_detect
+      apps_menu
+      ;;
     backups)
       ((${#arguments[@]} == 0)) || die "backups 不接受参数"
       platform_detect
       backups_menu
+      ;;
+    about)
+      ((${#arguments[@]} == 0)) || die "about 不接受参数"
+      toolkit_about
+      ;;
+    uninstall)
+      ((${#arguments[@]} == 0)) || die "uninstall 不接受参数"
+      toolkit_uninstall
       ;;
     version) printf 'Server Toolkit %s\n' "$SERVERCTL_VERSION" ;;
     *) die "未知命令：$command" ;;

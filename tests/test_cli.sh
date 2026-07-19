@@ -10,6 +10,7 @@ captured=""
 platform_detect() { :; }
 catalog_install() { captured="$1"; }
 catalog_print() { captured="list:${1:-}"; }
+toolkit_uninstall() { captured="uninstall"; }
 
 main install jq --dry-run
 [[ "$captured" == "jq" && "$DRY_RUN" -eq 1 ]] || { printf 'FAIL: 单项安装参数解析错误\n' >&2; exit 1; }
@@ -21,5 +22,8 @@ if (main install curl jq >/dev/null 2>&1); then
   printf 'FAIL: CLI 接受了多个软件 ID\n' >&2
   exit 1
 fi
+
+main uninstall
+[[ "$captured" == "uninstall" ]] || { printf 'FAIL: uninstall 命令没有进入卸载流程\n' >&2; exit 1; }
 
 printf 'PASS: cli\n'
