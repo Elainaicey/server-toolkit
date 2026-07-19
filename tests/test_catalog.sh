@@ -3,45 +3,45 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
-CATALOG_FILE="$ROOT_DIR/catalog/packages.tsv"
-OS_FAMILY="debian"
-OS_ID="debian"
-INSTALLED=()
+SOFTWARE_CATALOG="$ROOT_DIR/catalog/software.tsv"
 
-die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
-log_warn() { :; }
-log_step() { :; }
-pkg_installed() { return 1; }
-pkg_install_exact() { INSTALLED+=("$*"); }
+# shellcheck source=../lib/core.sh
+. "$ROOT_DIR/lib/core.sh"
+. "$ROOT_DIR/lib/ui.sh"
+setup_colors
 
+package_installed() { return 1; }
+command_exists() { return 1; }
 # shellcheck source=../lib/catalog.sh
 . "$ROOT_DIR/lib/catalog.sh"
 
-assert_eq() {
-  local expected="$1" actual="$2" message="$3"
-  [[ "$actual" == "$expected" ]] || die "$message (expected='$expected', actual='$actual')"
-}
+record="$(catalog_record python-venv)"
+IFS='|' read -r id _category _name _description packages handler <<<"$record"
+[[ "$id" == "python-venv" && "$packages" == "python3-venv" && -z "$handler" ]] || die "python-venv 映射错误"
 
-record="$(catalog_record fd)"
-assert_eq "fd-find" "$(catalog_packages_for_record "$record")" "Debian 软件包映射错误"
+duplicates="$(catalog_rows | awk -F '|' '{count[$1]++} END {for (id in count) if (count[id] > 1) print id}')"
+[[ -z "$duplicates" ]] || die "存在重复 ID：$duplicates"
 
-OS_FAMILY="rhel"
-assert_eq "fd-find" "$(catalog_packages_for_record "$record")" "RHEL 软件包映射错误"
-OS_FAMILY="debian"
+while IFS='|' read -r id category name description packages handler; do
+  [[ "$id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die "无效 ID：$id"
+  [[ -n "$category" && -n "$name" && -n "$description" ]] || die "目录字段为空：$id"
+  case "$handler" in
+    "") [[ -n "$packages" && "$packages" != *' '* ]] || die "普通软件必须精确映射一个包：$id" ;;
+    docker_official|caddy_official) [[ -z "$packages" ]] || die "专用安装器不应同时声明包：$id" ;;
+    *) die "未知安装器：$id -> $handler" ;;
+  esac
+done < <(catalog_rows)
 
-catalog_install_items curl fd python-venv
-assert_eq "curl" "${INSTALLED[0]}" "curl 应保持单项安装"
-assert_eq "fd-find" "${INSTALLED[1]}" "fd 应映射到发行版包名"
-assert_eq "python3-venv" "${INSTALLED[2]}" "python-venv 不应隐式安装完整 Python 工具链"
+captured=""
+confirm() { return 0; }
+require_root() { :; }
+package_install() { captured="package:$1"; }
+software_install_docker() { captured="handler:docker"; }
+software_install_caddy() { captured="handler:caddy"; }
 
-if catalog_record does-not-exist >/dev/null 2>&1; then
-  die "未知 ID 不应匹配成功"
-fi
-
-duplicates="$(catalog_rows | awk -F '|' '{ count[$1]++ } END { for (id in count) if (count[id] > 1) print id }')"
-[[ -z "$duplicates" ]] || die "软件目录存在重复 ID：$duplicates"
-
-invalid="$(awk -F '|' '!/^#/ && (NF != 5 || $1 !~ /^[a-z0-9][a-z0-9-]*$/) { print NR }' "$CATALOG_FILE")"
-[[ -z "$invalid" ]] || die "软件目录格式错误：$invalid"
+catalog_install jq >/dev/null
+[[ "$captured" == "package:jq" ]] || die "普通软件没有精确分发到单个包"
+catalog_install docker >/dev/null
+[[ "$captured" == "handler:docker" ]] || die "Docker 专用安装器分发错误"
 
 printf 'PASS: catalog\n'
