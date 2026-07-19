@@ -5,6 +5,7 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 
 required=(
+  LICENSE
   bin/serverctl
   config/software.tsv
   scripts/install.sh

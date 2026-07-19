@@ -11,6 +11,7 @@
 ![Shell](https://img.shields.io/badge/shell-Bash%205.x-4EAA25?style=flat-square&logo=gnubash&logoColor=white)
 ![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-A81D33?style=flat-square&logo=debian&logoColor=white)
 ![Language](https://img.shields.io/badge/interface-简体中文-246BCE?style=flat-square)
+[![License](https://img.shields.io/badge/license-MIT-8B5CF6?style=flat-square)](LICENSE)
 
 [快速开始](#快速开始) · [功能矩阵](#功能矩阵) · [命令参考](#命令参考) · [安全模型](#安全模型) · [项目结构](#项目结构)
 
@@ -218,6 +219,10 @@ bash scripts/check.sh
 ```
 
 检查流程覆盖 Bash 语法、ShellCheck、单元测试、目录结构、软件目录格式与 CLI 冒烟测试。贡献要求见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
+## 许可证
+
+Server Toolkit 依据 [MIT License](LICENSE) 开放源代码。你可以自由使用、修改与分发本项目，但必须保留原始版权声明和许可证文本。
 
 ---
 

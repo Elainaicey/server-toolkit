@@ -42,5 +42,7 @@ printf '[check] 发布元数据\n'
 version="$(tr -d '[:space:]' < VERSION)"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
 grep -Fqx "## $version" CHANGELOG.md
+grep -Fq 'MIT License' LICENSE
+grep -Fq 'Copyright (c) 2026 Elainaicey' LICENSE
 
 printf '[check] 全部通过\n'

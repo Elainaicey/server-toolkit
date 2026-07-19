@@ -189,7 +189,7 @@ fi
 parent_dir="$(dirname -- "$INSTALL_DIR")"
 mkdir -p "$parent_dir" "$(dirname -- "$BIN_PATH")"
 STAGE_DIR="$(mktemp -d "$parent_dir/.server-toolkit-stage.XXXXXX")"
-for entry in bin src config scripts install.sh VERSION README.md CHANGELOG.md; do
+for entry in bin src config scripts install.sh VERSION README.md CHANGELOG.md LICENSE SECURITY.md; do
   if [[ -e "$SOURCE_DIR/$entry" ]]; then
     cp -a "$SOURCE_DIR/$entry" "$STAGE_DIR/"
   fi

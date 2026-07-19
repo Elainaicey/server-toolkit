@@ -20,6 +20,14 @@ grep -Fqx "## $version" CHANGELOG.md || {
   printf 'FAIL: CHANGELOG.md 缺少 %s 发布章节\n' "$version" >&2
   exit 1
 }
+grep -Fq 'MIT License' LICENSE || {
+  printf 'FAIL: LICENSE 不是预期的 MIT License\n' >&2
+  exit 1
+}
+grep -Fq 'Copyright (c) 2026 Elainaicey' LICENSE || {
+  printf 'FAIL: LICENSE 缺少项目版权声明\n' >&2
+  exit 1
+}
 
 bash scripts/check.sh
 printf 'PASS: release %s\n' "$tag"
