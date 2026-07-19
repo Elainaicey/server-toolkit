@@ -44,5 +44,9 @@ version="$(tr -d '[:space:]' < VERSION)"
 grep -Fqx "## $version" CHANGELOG.md
 grep -Fq 'MIT License' LICENSE
 grep -Fq 'Copyright (c) 2026 Elainaicey' LICENSE
+if grep -Fq 'img.shields.io' README.md; then
+  printf 'README 不应依赖第三方 Shields.io 徽章\n' >&2
+  exit 1
+fi
 
 printf '[check] 全部通过\n'

@@ -6,6 +6,11 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)
 
 required=(
   LICENSE
+  .github/assets/badges/version.svg
+  .github/assets/badges/shell.svg
+  .github/assets/badges/platform.svg
+  .github/assets/badges/language.svg
+  .github/assets/badges/license.svg
   bin/serverctl
   config/software.tsv
   scripts/install.sh

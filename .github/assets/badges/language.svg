@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="135" height="20" role="img" aria-label="interface: 简体中文">
+  <title>interface: 简体中文</title>
+  <mask id="r"><rect width="135" height="20" rx="4" fill="#fff"/></mask>
+  <g mask="url(#r)">
+    <rect width="68" height="20" fill="#1f2937"/>
+    <rect x="68" width="67" height="20" fill="#2563eb"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,Noto Sans CJK SC,Microsoft YaHei,sans-serif" font-size="11">
+    <text x="34" y="14">interface</text><text x="101.5" y="14" font-weight="bold">简体中文</text>
+  </g>
+</svg>

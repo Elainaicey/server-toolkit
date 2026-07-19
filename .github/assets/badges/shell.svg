@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="116" height="20" role="img" aria-label="shell: Bash 5.x">
+  <title>shell: Bash 5.x</title>
+  <mask id="r"><rect width="116" height="20" rx="4" fill="#fff"/></mask>
+  <g mask="url(#r)">
+    <rect width="48" height="20" fill="#1f2937"/>
+    <rect x="48" width="68" height="20" fill="#16a34a"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">
+    <text x="24" y="14">shell</text><text x="82" y="14" font-weight="bold">Bash 5.x</text>
+  </g>
+</svg>

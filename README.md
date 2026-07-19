@@ -6,12 +6,12 @@
 
 以清晰的信息架构组织系统、网络、安全、服务、软件、容器与配置恢复；每一次系统修改都强调可见、可确认与可追踪。
 
-[![Version](https://img.shields.io/badge/version-0.1.0-00b8d9?style=flat-square)](./VERSION)
-[![Checks](https://img.shields.io/github/actions/workflow/status/Elainaicey/server-toolkit/ci.yml?branch=main&style=flat-square&label=checks)](https://github.com/Elainaicey/server-toolkit/actions)
-![Shell](https://img.shields.io/badge/shell-Bash%205.x-4EAA25?style=flat-square&logo=gnubash&logoColor=white)
-![Platform](https://img.shields.io/badge/platform-Debian%20%7C%20Ubuntu-A81D33?style=flat-square&logo=debian&logoColor=white)
-![Language](https://img.shields.io/badge/interface-简体中文-246BCE?style=flat-square)
-[![License](https://img.shields.io/badge/license-MIT-8B5CF6?style=flat-square)](LICENSE)
+[![Version](.github/assets/badges/version.svg)](VERSION)
+[![Checks](https://github.com/Elainaicey/server-toolkit/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Elainaicey/server-toolkit/actions/workflows/ci.yml)
+![Shell](.github/assets/badges/shell.svg)
+![Platform](.github/assets/badges/platform.svg)
+![Language](.github/assets/badges/language.svg)
+[![License](.github/assets/badges/license.svg)](LICENSE)
 
 [快速开始](#快速开始) · [功能矩阵](#功能矩阵) · [命令参考](#命令参考) · [安全模型](#安全模型) · [项目结构](#项目结构)
 
