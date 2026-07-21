@@ -4,8 +4,12 @@ IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 CONFIG_DIR="$ROOT_DIR/config"
+# catalog.sh 与 ui.sh 在加载后消费这些测试夹具变量。
+# shellcheck disable=SC2034
 SOFTWARE_CATALOG="$CONFIG_DIR/software.tsv"
+# shellcheck disable=SC2034
 SERVERCTL_VERSION=0.1.0
+# shellcheck disable=SC2034
 NO_COLOR=1
 
 . "$ROOT_DIR/src/core/runtime.sh"

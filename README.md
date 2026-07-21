@@ -228,7 +228,7 @@ cd server-toolkit
 bash scripts/check.sh
 ```
 
-检查流程覆盖 Bash 语法、ShellCheck、单元测试、目录结构、软件目录格式与 CLI 冒烟测试。贡献要求见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)。
+检查流程覆盖 Bash 语法、逐文件 ShellCheck、单元测试、目录结构、软件目录格式与 CLI 冒烟测试。贡献要求见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)。
 
 ## 许可证
 

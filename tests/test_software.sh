@@ -6,9 +6,13 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)
 . "$ROOT_DIR/src/core/runtime.sh"
 . "$ROOT_DIR/src/features/software.sh"
 
+# software.sh 与 runtime.sh 在加载后消费这些测试夹具。
+# shellcheck disable=SC2034
 DRY_RUN=1
 removed=""
 confirmations=0
+# software_install_docker 通过功能模块间接调用该测试桩。
+# shellcheck disable=SC2329
 package_installed() { [[ "$1" == "containerd" ]]; }
 confirm() { confirmations=$((confirmations + 1)); return 0; }
 package_remove() { removed="$1"; }

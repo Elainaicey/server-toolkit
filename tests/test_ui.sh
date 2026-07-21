@@ -6,7 +6,10 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)
 . "$ROOT_DIR/src/core/runtime.sh"
 . "$ROOT_DIR/src/core/ui.sh"
 
+# ui.sh 在加载后消费这些测试夹具变量。
+# shellcheck disable=SC2034
 SERVERCTL_VERSION="0.1.0"
+# shellcheck disable=SC2034
 NO_COLOR=1
 runtime_locale
 runtime_colors
