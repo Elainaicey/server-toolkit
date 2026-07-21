@@ -20,7 +20,10 @@ package_has_update() { return 1; }
 command_exists() { return 1; }
 software_oh_my_zsh_installed() { return 1; }
 software_oh_my_zsh_version() { :; }
+software_prompt_installed() { return 1; }
+software_prompt_version() { :; }
 software_target_user() { printf 'tester'; }
+software_target_home() { printf '/home/tester'; }
 software_oh_my_zsh_path() { printf '/home/tester/.oh-my-zsh'; }
 # shellcheck source=../src/core/catalog.sh
 . "$ROOT_DIR/src/core/catalog.sh"
@@ -53,7 +56,7 @@ while IFS='|' read -r id category name description packages handler; do
   [[ -n "$category" && -n "$name" && -n "$description" ]] || die "目录字段为空：$id"
   case "$handler" in
     "") [[ -n "$packages" && "$packages" != *' '* ]] || die "普通软件必须精确映射一个包：$id" ;;
-    docker_official|caddy_official|oh_my_zsh) [[ -z "$packages" ]] || die "专用安装器不应同时声明包：$id" ;;
+    docker_official|caddy_official|oh_my_zsh|starship_prompt|oh_my_posh_prompt|spaceship_prompt) [[ -z "$packages" ]] || die "专用安装器不应同时声明包：$id" ;;
     *) die "未知安装器：$id -> $handler" ;;
   esac
 done < <(catalog_rows)
@@ -71,6 +74,9 @@ package_install() { captured="package:$1"; }
 software_install_docker() { captured="handler:docker"; }
 software_install_caddy() { captured="handler:caddy"; }
 software_install_oh_my_zsh() { captured="handler:oh-my-zsh"; }
+software_install_starship() { captured="handler:starship"; }
+software_install_oh_my_posh() { captured="handler:oh-my-posh"; }
+software_install_spaceship() { captured="handler:spaceship"; }
 
 catalog_install jq >/dev/null
 [[ "$captured" == "package:jq" ]] || die "普通软件没有精确分发到单个包"
@@ -78,6 +84,8 @@ catalog_install docker >/dev/null
 [[ "$captured" == "handler:docker" ]] || die "Docker 专用安装器分发错误"
 catalog_install oh-my-zsh >/dev/null
 [[ "$captured" == "handler:oh-my-zsh" ]] || die "Oh My Zsh 专用安装器分发错误"
+catalog_install starship >/dev/null
+[[ "$captured" == "handler:starship" ]] || die "Starship 专用安装器分发错误"
 
 package_installed() { [[ "$1" == "jq" ]]; }
 package_installed_version() { printf '1.0.0'; }
