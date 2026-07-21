@@ -2,7 +2,15 @@
 
 ## Unreleased
 
-- CI 改为逐个检查每个 Shell 文件，并为跨模块全局变量与测试桩补充精确的 ShellCheck 说明
+- CI 改为逐个检查每个 Shell 文件，兼容 ShellCheck 0.9/0.11，并为跨模块全局变量与测试桩补充精确说明
+- 功能分支仅运行 pull request 检查，避免 push 与 pull_request 重复执行；GitHub checkout 升级到 Node.js 24 运行时
+- 将 CI 拆分为 `repository-files`、`shell` 和 `tests` 三项检查，并强制所有仓库文件归类验证
+- 增加 UTF-8、LF、末尾换行、尾随空白、Markdown 内部链接、YAML、SVG XML、Git 属性和发布元数据检查
+- 软件目录由 66 项扩展到 106 项，增加系统工具、网络、安全、监控、数据库客户端和 OCI 容器工具
+- 软件中心增加按分类浏览与仅看已安装视图，避免目录扩充后出现过长的平铺列表
+- 增加 DNS 解析器与 A/AAAA/CNAME 记录诊断，并提供 `serverctl dns [域名]` 直接命令
+- TLS 证书检查增加主机名/IP 匹配验证和剩余有效期分级预警
+- 将系统修改与维护动作拆分到 `src/features/system/settings.sh`，降低系统中心单文件复杂度
 - 增加综合系统健康巡检，汇总资源、存储、systemd、软件更新、DNS、HTTPS、时间同步、防火墙和 SSH 状态
 - 增加 `serverctl health`、`serverctl updates`、`serverctl storage` 与 `serverctl logs SERVICE` 直接命令
 - 将软件包状态页扩展为更新版本清单、保留包、dpkg 审计与缓存摘要

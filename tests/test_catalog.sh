@@ -25,6 +25,18 @@ record="$(catalog_record python-venv)"
 IFS='|' read -r id _category _name _description packages handler <<<"$record"
 [[ "$id" == "python-venv" && "$packages" == "python3-venv" && -z "$handler" ]] || die "python-venv 映射错误"
 
+record="$(catalog_record podman)"
+IFS='|' read -r id category _name _description packages handler <<<"$record"
+[[ "$id" == "podman" && "$category" == "容器" && "$packages" == "podman" && -z "$handler" ]] || die "podman 映射错误"
+
+catalog_total="$(catalog_rows | wc -l | tr -d '[:space:]')"
+(( catalog_total >= 100 )) || die "软件目录条目不足：$catalog_total"
+
+network_total="$(catalog_category_rows 网络 | wc -l | tr -d '[:space:]')"
+(( network_total >= 10 )) || die "网络分类条目不足：$network_total"
+[[ -z "$(catalog_category_rows 网络 | awk -F '|' '$2 != "网络" {print}')" ]] || die "分类查询返回了其他分类"
+grep -Eq '^基础\|[0-9]+$' < <(catalog_categories) || die "分类统计缺少基础分类"
+
 duplicates="$(catalog_rows | awk -F '|' '{count[$1]++} END {for (id in count) if (count[id] > 1) print id}')"
 [[ -z "$duplicates" ]] || die "存在重复 ID：$duplicates"
 

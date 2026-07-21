@@ -21,12 +21,16 @@ required=(
   bin/serverctl
   config/software.tsv
   scripts/install.sh
+  scripts/check-repository.sh
+  scripts/check-shell.sh
+  scripts/check-tests.sh
   scripts/release-check.sh
   .github/workflows/release.yml
   docs/RELEASE.md
   src/core/runtime.sh
   src/core/catalog.sh
   src/features/dashboard.sh
+  src/features/system/settings.sh
   src/features/software.sh
   src/features/apps.sh
   src/features/apps/docker.sh
@@ -37,11 +41,14 @@ for path in "${required[@]}"; do
 done
 
 for attribute in \
+  '* text=auto eol=lf' \
   '.gitattributes text eol=lf' \
   '*.sh text eol=lf' \
   'bin/* text eol=lf' \
   '*.tsv text eol=lf' \
-  '*.md text eol=lf'; do
+  '*.md text eol=lf' \
+  '*.yml text eol=lf' \
+  '*.svg text eol=lf'; do
   grep -Fqx "$attribute" "$ROOT_DIR/.gitattributes" || {
     printf 'FAIL: .gitattributes 缺少 LF 规则：%s\n' "$attribute" >&2
     exit 1

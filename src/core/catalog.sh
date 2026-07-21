@@ -12,6 +12,25 @@ catalog_rows() {
   fi
 }
 
+catalog_category_rows() {
+  local category="$1"
+  [[ -r "$SOFTWARE_CATALOG" ]] || die "软件目录不可读：$SOFTWARE_CATALOG"
+  awk -F '|' -v category="$category" '!/^#/ && NF==6 && $2==category {print}' "$SOFTWARE_CATALOG"
+}
+
+catalog_categories() {
+  [[ -r "$SOFTWARE_CATALOG" ]] || die "软件目录不可读：$SOFTWARE_CATALOG"
+  awk -F '|' '
+    !/^#/ && NF==6 {
+      if (!seen[$2]++) order[++total]=$2
+      count[$2]++
+    }
+    END {
+      for (i=1; i<=total; i++) print order[i] "|" count[order[i]]
+    }
+  ' "$SOFTWARE_CATALOG"
+}
+
 catalog_record() {
   awk -F '|' -v wanted="$1" '!/^#/ && NF==6 && $1==wanted {print; found=1; exit} END{if(!found)exit 1}' "$SOFTWARE_CATALOG"
 }
@@ -144,6 +163,15 @@ catalog_print() {
     count=$((count + 1))
   done < <(catalog_rows "$query")
   (( count > 0 )) || { warn "没有找到与 '$query' 匹配的软件。"; return 1; }
+}
+
+catalog_print_category() {
+  local category="$1" record count=0
+  while IFS= read -r record; do
+    catalog_print_record "$record"
+    count=$((count + 1))
+  done < <(catalog_category_rows "$category")
+  (( count > 0 )) || { warn "分类 '$category' 中没有软件。"; return 1; }
 }
 
 catalog_packages() {
@@ -297,6 +325,65 @@ catalog_item_menu() {
   done
 }
 
+catalog_open_prompt() {
+  local input
+  input="$(read_input "软件 ID；输入 0 返回" "0")"
+  [[ "$input" == "0" ]] && return 0
+  if catalog_record "$input" >/dev/null 2>&1; then
+    catalog_item_menu "$input"
+  else
+    warn "未知软件 ID：$input"
+    pause
+  fi
+}
+
+catalog_categories_view() {
+  local entries=() category count choice index selected
+  mapfile -t entries < <(catalog_categories)
+  while true; do
+    ui_page "软件管理 / 分类浏览" "按用途浏览 ${#entries[@]} 个分类"
+    ui_section "软件分类" "primary"
+    for index in "${!entries[@]}"; do
+      IFS='|' read -r category count <<<"${entries[$index]}"
+      ui_item "$((index + 1))" "$category" "$count 个软件"
+    done
+    ui_action 0 "返回软件中心" "muted"
+    choice="$(read_input "请选择分类" "0")"
+    [[ "$choice" == "0" ]] && return 0
+    if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#entries[@]} )); then
+      warn "无效分类编号：$choice"
+      pause
+      continue
+    fi
+    selected="${entries[$((choice - 1))]}"
+    IFS='|' read -r category count <<<"$selected"
+    ui_page "软件管理 / $category" "$count 个独立软件 · 输入精确 ID 进入管理"
+    catalog_print_category "$category"
+    catalog_open_prompt
+  done
+}
+
+catalog_installed_view() {
+  local record count
+  while true; do
+    ui_page "软件管理 / 已安装" "仅显示软件目录中已经安装的条目"
+    count=0
+    while IFS= read -r record; do
+      if catalog_installed "$record"; then
+        catalog_print_record "$record"
+        count=$((count + 1))
+      fi
+    done < <(catalog_rows)
+    if (( count == 0 )); then
+      ui_empty "软件目录中暂未检测到已安装条目"
+      pause
+      return 0
+    fi
+    ui_note "共检测到 $count 个已安装条目；输入软件 ID 可更新或移除。"
+    catalog_open_prompt
+  done
+}
+
 catalog_updates_view() {
   local record count=0 input
   while true; do
@@ -333,7 +420,8 @@ software_catalog_menu() {
     ui_page "软件管理" "独立软件的搜索、版本检查、安装、更新与移除"
     ui_stats "目录" "$total" "已安装" "$installed" "可更新" "$updates"
     ui_section "快捷操作" "primary"
-    ui_action A "浏览全部软件" "action" "按分类显示版本与状态"
+    ui_action A "按分类浏览" "action" "在分类内查看版本、状态与可用操作"
+    ui_action I "仅看已安装" "success" "快速进入已安装软件的更新与移除"
     ui_action U "查看可用更新" "warning" "只列出可更新条目"
     ui_action R "刷新软件索引" "accent" "从已配置仓库获取最新元数据"
     ui_section "搜索软件" "accent"
@@ -345,23 +433,11 @@ software_catalog_menu() {
       ui_empty "示例：python、网络、备份、nginx、docker"
     fi
     printf '\n'
-    input="$(read_input "搜索 / ID / A / U / R；输入 0 返回" "0")"
+    input="$(read_input "搜索 / ID / A / I / U / R；输入 0 返回" "0")"
     case "$input" in
       0) return 0 ;;
-      A|a|all)
-        query=""
-        ui_page "软件管理 / 全部软件" "$total 个独立条目 · 输入精确 ID 可进行操作"
-        catalog_print
-        input="$(read_input "软件 ID；输入 0 返回" "0")"
-        if [[ "$input" != "0" ]]; then
-          if catalog_record "$input" >/dev/null 2>&1; then
-            catalog_item_menu "$input"
-          else
-            warn "未知软件 ID：$input"
-            pause
-          fi
-        fi
-        ;;
+      A|a|all) query=""; catalog_categories_view ;;
+      I|i|installed) catalog_installed_view ;;
       U|u) catalog_updates_view ;;
       R|r) catalog_refresh_index || true; pause ;;
       "") ;;
