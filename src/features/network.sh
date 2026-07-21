@@ -10,14 +10,14 @@ network_show() {
 
 network_connectivity_test() {
   ui_page "连通性检查" "DNS、IPv4/IPv6 路由和 HTTPS 可用性"
-  if getent hosts github.com >/dev/null 2>&1; then doctor_result pass "DNS 解析 github.com"; else doctor_result fail "DNS 解析失败"; fi
-  if ip -4 route get 1.1.1.1 >/dev/null 2>&1; then doctor_result pass "IPv4 默认路由"; else doctor_result warn "没有 IPv4 默认路由"; fi
-  if ip -6 route get 2606:4700:4700::1111 >/dev/null 2>&1; then doctor_result pass "IPv6 默认路由"; else doctor_result warn "没有 IPv6 默认路由"; fi
+  if getent hosts github.com >/dev/null 2>&1; then ui_check pass "DNS 解析 github.com"; else ui_check fail "DNS 解析失败"; fi
+  if ip -4 route get 1.1.1.1 >/dev/null 2>&1; then ui_check pass "IPv4 默认路由"; else ui_check warn "没有 IPv4 默认路由"; fi
+  if ip -6 route get 2606:4700:4700::1111 >/dev/null 2>&1; then ui_check pass "IPv6 默认路由"; else ui_check warn "没有 IPv6 默认路由"; fi
   if command_exists curl; then
-    if curl -4fsI --connect-timeout 3 --max-time 8 https://github.com >/dev/null 2>&1; then doctor_result pass "IPv4 HTTPS"; else doctor_result warn "IPv4 HTTPS 不可用"; fi
-    if curl -6fsI --connect-timeout 3 --max-time 8 https://github.com >/dev/null 2>&1; then doctor_result pass "IPv6 HTTPS"; else doctor_result warn "IPv6 HTTPS 不可用"; fi
+    if curl -4fsI --connect-timeout 3 --max-time 8 https://github.com >/dev/null 2>&1; then ui_check pass "IPv4 HTTPS"; else ui_check warn "IPv4 HTTPS 不可用"; fi
+    if curl -6fsI --connect-timeout 3 --max-time 8 https://github.com >/dev/null 2>&1; then ui_check pass "IPv6 HTTPS"; else ui_check warn "IPv6 HTTPS 不可用"; fi
   else
-    doctor_result warn "未安装 curl，跳过 HTTPS 检查"
+    ui_check warn "未安装 curl，跳过 HTTPS 检查"
   fi
 }
 

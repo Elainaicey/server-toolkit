@@ -18,5 +18,12 @@ grep -q '\[2\].*更新' <<<"$output" || { printf 'FAIL: UI 语义操作缺失\n'
 [[ "$(ui_display_width "系统")" -eq 4 ]] || { printf 'FAIL: 中文显示宽度计算错误\n' >&2; exit 1; }
 progress="$(ui_progress "内存" 50 100 MiB)"
 grep -q '50%' <<<"$progress" || { printf 'FAIL: 资源进度条计算错误\n' >&2; exit 1; }
+health_summary="$(ui_health_summary 12 2 1)"
+grep -Eq '通过[[:space:]]+12.*关注[[:space:]]+2.*异常[[:space:]]+1' <<<"$health_summary" || {
+  printf 'FAIL: 健康摘要布局错误\n' >&2
+  exit 1
+}
+check_line="$(ui_check warn "需要关注")"
+grep -q '! 需要关注' <<<"$check_line" || { printf 'FAIL: UI 检查状态组件错误\n' >&2; exit 1; }
 
 printf 'PASS: ui\n'

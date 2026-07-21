@@ -68,13 +68,13 @@ sudo serverctl
 | 中心 | 能力 |
 | --- | --- |
 | **系统仪表盘** | 主机环境、负载、内存/Swap/磁盘进度、systemd 状态、TCP 监听、软件更新与 Docker 状态 |
-| **系统管理** | 环境检查、资源压力、进程排行、用户会话、计划任务、重启状态、软件包健康、磁盘分析、主机名、时区、Swap、NTP 与安全清理 |
+| **系统管理** | 综合健康巡检、环境检查、资源压力、进程排行、用户会话、计划任务、重启状态、软件包更新清单、存储诊断、主机名、时区、Swap、NTP 与安全清理 |
 | **网络与端口** | 接口地址、路由与策略规则、DNS、IPv4/IPv6 连通性、目标诊断、网卡流量、连接会话、监听端口、端口进程、BBR 与地址优先级 |
 | **安全中心** | 安全基线、公网监听、UFW 状态与规则、SSH 安全向导、登录事件、Fail2ban 状态与 TLS 证书检查 |
-| **服务与日志** | failed/active 服务、单服务状态与 Journal、启动停止、开机启动、Timer、启动错误、内核警告与项目操作审计 |
+| **服务与日志** | failed/active 服务、关键词查找、服务详情与依赖、Journal、生命周期、开机启动、Timer、启动错误、内核警告与项目操作审计 |
 | **软件管理** | 按 ID、名称、分类和说明搜索；查看当前版本、仓库候选版本与更新状态；单项安装、更新或移除 66 个常用软件条目 |
-| **应用与容器** | Web、数据库、缓存与容器服务概览；Docker 容器、镜像、资源、Compose、存储卷、网络和安全清理 |
-| **备份与恢复** | 自动配置快照、手动 `/etc` 文件快照、备份清单检查与单文件恢复 |
+| **应用与容器** | Web、数据库、缓存与容器服务概览；Docker 健康检查、容器详情、日志、资源、生命周期、镜像、Compose、存储卷、网络和安全清理 |
+| **备份与恢复** | 自动配置快照、手动 `/etc` 文件快照、完整性校验、当前配置差异、安全删除与单文件恢复 |
 
 普通软件条目精确映射一个 APT 包。Docker 与 Caddy 使用各自的软件仓库流程，参考 [Docker Engine 安装文档](https://docs.docker.com/engine/install/)与 [Caddy 安装文档](https://caddyserver.com/docs/install)。
 
@@ -84,12 +84,16 @@ sudo serverctl
 
 ```bash
 serverctl status                 # 系统仪表盘
+serverctl health                 # 综合系统健康巡检
 serverctl doctor                 # 环境检查
+serverctl updates                # 系统软件包更新清单
+serverctl storage                # 存储与占用诊断
 serverctl ports                  # 监听端口
 serverctl system                 # 系统管理中心
 serverctl network                # 网络与端口中心
 serverctl security               # 安全中心
 serverctl services               # 服务与日志中心
+serverctl logs nginx.service     # 直接查看服务最近日志
 serverctl apps                   # 应用与容器中心
 serverctl backups                # 备份与恢复中心
 serverctl about                  # 版本和安装路径
