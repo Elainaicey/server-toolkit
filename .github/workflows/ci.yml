@@ -15,12 +15,37 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  repository-files:
+    name: repository-files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install YAML validator
+        run: sudo apt-get update && sudo apt-get install -y yamllint
+      - name: Validate every tracked file
+        env:
+          REQUIRE_YAMLLINT: '1'
+        run: bash scripts/check-repository.sh
+
+  shell:
+    name: shell
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
-      - name: Run checks
-        run: bash scripts/check.sh
+      - name: Check every Shell file
+        env:
+          REQUIRE_SHELLCHECK: '1'
+        run: bash scripts/check-shell.sh
+
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run unit and smoke tests
+        run: bash scripts/check-tests.sh

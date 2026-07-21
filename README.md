@@ -231,7 +231,9 @@ cd server-toolkit
 bash scripts/check.sh
 ```
 
-检查流程覆盖 Bash 语法、逐文件 ShellCheck、单元测试、目录结构、软件目录格式与 CLI 冒烟测试。贡献要求见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)。
+开发检查需要 Bash 与 Python 3.8+；推荐安装 ShellCheck 和 yamllint，以获得与 CI 一致的完整结果。
+
+检查流程分为 `repository-files`、`shell` 和 `tests` 三个独立任务。所有 Git 跟踪文件必须归入明确类别，并接受 UTF-8、LF、尾随空白和 Git 属性检查；Markdown、工作流 YAML、SVG、软件目录、许可证与版本元数据还会执行对应的专项验证。未归类的新文件会直接使 CI 失败。贡献要求见 [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md)。
 
 ## 许可证
 

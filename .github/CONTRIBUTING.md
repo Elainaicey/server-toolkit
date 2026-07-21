@@ -15,7 +15,7 @@
 bash scripts/check.sh
 ```
 
-推荐安装 ShellCheck。所有变化至少应通过 Bash 语法、目录格式、单元测试和 CLI 冒烟测试。
+本地检查需要 Bash 与 Python 3.8+，推荐同时安装 ShellCheck 与 yamllint。CI 将检查每个仓库文件的分类、UTF-8、LF、尾随空白和内部链接，并分别验证 Shell、工作流 YAML、Markdown、SVG、软件目录、项目元数据、单元测试与 CLI。新增文件类型时必须先在 `scripts/check-repository.sh` 中声明验证方式。
 
 ## 提交软件条目
 
