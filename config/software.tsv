@@ -12,12 +12,22 @@ lsof|基础|lsof|查看文件和端口占用|lsof|
 unzip|基础|unzip|ZIP 解压工具|unzip|
 zip|基础|zip|ZIP 压缩工具|zip|
 rsync|基础|rsync|增量文件同步工具|rsync|
+gnupg|基础|GnuPG|密钥、签名与加密工具|gnupg|
+acl|基础|ACL 工具|管理文件系统访问控制列表|acl|
+psmisc|基础|psmisc|提供 pstree、killall 和 fuser|psmisc|
+pv|基础|pv|显示管道数据传输进度|pv|
+screen|基础|GNU Screen|终端会话复用工具|screen|
+mc|基础|Midnight Commander|终端双栏文件管理器|mc|
+zstd|基础|Zstandard|高性能压缩工具|zstd|
+xz-utils|基础|XZ Utils|XZ 与 LZMA 压缩工具|xz-utils|
 ripgrep|命令行|ripgrep|高速文本搜索工具|ripgrep|
 fd|命令行|fd|文件查找工具，Debian 命令名为 fdfind|fd-find|
 bat|命令行|bat|高亮文件查看器，Debian 命令名通常为 batcat|bat|
 fzf|命令行|fzf|模糊查找工具|fzf|
 tree|命令行|tree|以树形显示目录|tree|
 neovim|命令行|Neovim|现代 Vim 编辑器|neovim|
+shellcheck|命令行|ShellCheck|Shell 脚本静态分析工具|shellcheck|
+git-lfs|命令行|Git LFS|Git 大文件存储扩展|git-lfs|
 mtr|网络|mtr|网络链路诊断工具|mtr-tiny|
 traceroute|网络|traceroute|路由跟踪工具|traceroute|
 whois|网络|whois|域名和 IP 信息查询|whois|
@@ -27,24 +37,40 @@ iperf3|网络|iperf3|网络吞吐测试工具|iperf3|
 dnsutils|网络|DNS 工具|dig 和 nslookup 等 DNS 工具|dnsutils|
 tcpdump|网络|tcpdump|网络抓包工具|tcpdump|
 net-tools|网络|net-tools|ifconfig 和 netstat 等传统工具|net-tools|
+ping|网络|ping|ICMP 连通性测试工具|iputils-ping|
+ethtool|网络|ethtool|查看和配置网卡参数|ethtool|
+netcat|网络|Netcat|TCP 与 UDP 连接调试工具|netcat-openbsd|
+nftables|网络|nftables|Linux 原生包过滤管理工具|nftables|
+wireguard-tools|网络|WireGuard 工具|WireGuard VPN 命令行工具|wireguard-tools|
+conntrack|网络|Conntrack|查看内核连接跟踪表|conntrack|
 sysstat|监控|sysstat|sar 和 iostat 性能统计工具|sysstat|
 iotop|监控|iotop|磁盘 IO 监控工具|iotop|
 iftop|监控|iftop|实时网络流量监控|iftop|
 ncdu|监控|ncdu|磁盘占用分析工具|ncdu|
 strace|监控|strace|系统调用跟踪工具|strace|
 nload|监控|nload|网卡流量监控工具|nload|
+atop|监控|atop|系统与进程历史性能监控|atop|
+smartmontools|监控|smartmontools|磁盘 SMART 健康检查工具|smartmontools|
+lm-sensors|监控|lm-sensors|硬件传感器读取工具|lm-sensors|
+inotify-tools|监控|inotify-tools|文件系统事件监控工具|inotify-tools|
 rclone|备份|rclone|云存储同步工具|rclone|
 restic|备份|restic|加密增量备份工具|restic|
 borgbackup|备份|BorgBackup|去重备份工具|borgbackup|
 ufw|安全|UFW|简单的主机防火墙|ufw|
 fail2ban|安全|Fail2ban|登录暴力破解防护|fail2ban|
 openssl|安全|OpenSSL|TLS 和证书工具|openssl|
+auditd|安全|auditd|Linux 审计日志服务|auditd|
+apparmor-utils|安全|AppArmor 工具|管理和诊断 AppArmor 策略|apparmor-utils|
+debsums|安全|debsums|校验已安装软件包文件完整性|debsums|
+lynis|安全|Lynis|系统安全审计工具|lynis|
 gcc|开发|GCC|C 编译器|gcc|
 gpp|开发|G++|C++ 编译器|g++|
 make|开发|Make|经典构建工具|make|
 cmake|开发|CMake|跨平台构建系统|cmake|
 ninja|开发|Ninja|高速构建工具|ninja-build|
 pkg-config|开发|pkg-config|查找编译依赖信息|pkg-config|
+build-essential|开发|build-essential|Debian 与 Ubuntu 标准编译工具集合|build-essential|
+python-dev|开发|Python 3 开发文件|构建 Python 原生扩展所需头文件|python3-dev|
 python|运行时|Python 3|Python 3 解释器|python3|
 pip|运行时|pip|Python 包管理器|python3-pip|
 python-venv|运行时|Python venv|Python 虚拟环境支持|python3-venv|
@@ -57,6 +83,8 @@ cargo|运行时|Cargo|Rust 包管理器|cargo|
 java|运行时|OpenJDK|默认 Java 开发环境|default-jdk|
 php|运行时|PHP CLI|PHP 命令行运行时|php-cli|
 php-fpm|运行时|PHP-FPM|PHP FastCGI 服务|php-fpm|
+ruby|运行时|Ruby|Ruby 完整运行与开发环境|ruby-full|
+composer|运行时|Composer|PHP 依赖管理工具|composer|
 nginx|服务|Nginx|Web 服务器和反向代理|nginx|
 caddy|服务|Caddy|从官方仓库安装 Caddy||caddy_official
 redis|服务|Redis|内存缓存和数据存储|redis-server|
@@ -64,4 +92,16 @@ postgresql|服务|PostgreSQL|PostgreSQL 数据库服务器|postgresql|
 postgresql-contrib|服务|PostgreSQL 扩展|PostgreSQL 常用扩展|postgresql-contrib|
 mariadb|服务|MariaDB|MariaDB 数据库服务器|mariadb-server|
 sqlite|服务|SQLite|SQLite 命令行工具|sqlite3|
+apache|服务|Apache HTTP Server|通用 Web 服务器|apache2|
+haproxy|服务|HAProxy|高性能 TCP 与 HTTP 负载均衡器|haproxy|
+memcached|服务|Memcached|内存对象缓存服务|memcached|
+dnsmasq|服务|dnsmasq|轻量 DNS 缓存与 DHCP 服务|dnsmasq|
+bind9|服务|BIND 9|权威与递归 DNS 服务器|bind9|
+certbot|服务|Certbot|Let's Encrypt ACME 证书客户端|certbot|
+postgresql-client|数据库|PostgreSQL 客户端|psql 等 PostgreSQL 客户端工具|postgresql-client|
+mariadb-client|数据库|MariaDB 客户端|MariaDB 与 MySQL 客户端工具|mariadb-client|
+redis-tools|数据库|Redis 工具|redis-cli 等 Redis 客户端工具|redis-tools|
 docker|容器|Docker Engine|从 Docker 官方仓库安装 Engine 和 Compose||docker_official
+podman|容器|Podman|无守护进程 OCI 容器引擎|podman|
+buildah|容器|Buildah|构建 OCI 容器镜像|buildah|
+skopeo|容器|Skopeo|检查和复制容器镜像|skopeo|

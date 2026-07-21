@@ -30,6 +30,7 @@ fi
 . "$ROOT_DIR/src/core/catalog.sh"
 . "$ROOT_DIR/src/features/software.sh"
 . "$ROOT_DIR/src/features/dashboard.sh"
+. "$ROOT_DIR/src/features/system/settings.sh"
 . "$ROOT_DIR/src/features/system.sh"
 . "$ROOT_DIR/src/features/network.sh"
 . "$ROOT_DIR/src/features/security.sh"
@@ -54,6 +55,7 @@ usage() {
   serverctl update ID             更新一个已安装软件
   serverctl remove ID             移除一个软件
   serverctl ports                 查看监听端口
+  serverctl dns [域名]            诊断系统 DNS 解析
   serverctl system                打开系统管理中心
   serverctl network               打开网络与端口中心
   serverctl security              打开安全中心
@@ -181,6 +183,11 @@ main() {
       ((${#arguments[@]} == 0)) || die "ports 不接受参数"
       platform_detect
       network_list_ports
+      ;;
+    dns)
+      ((${#arguments[@]} <= 1)) || die "dns 最多接受一个域名"
+      platform_detect
+      network_dns_diagnose "${arguments[0]:-}"
       ;;
     system)
       ((${#arguments[@]} == 0)) || die "system 不接受参数"

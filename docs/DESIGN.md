@@ -14,12 +14,13 @@ bin/serverctl
 ├── src/core/catalog.sh
 ├── src/features/*.sh
 ├── src/features/apps/docker.sh
+├── src/features/system/settings.sh
 └── config/software.tsv
 ```
 
 - `bin/` 只放用户直接执行的程序，负责参数解析、加载模块和顶层导航。
 - `src/core/` 提供通用能力，不出现某个功能中心专属的交互流程。
-- `src/features/` 按领域组织完整操作；只有“应用与容器”这类明确领域允许使用子目录。
+- `src/features/` 按领域组织完整操作；当单个领域包含多组职责时，使用同名子目录拆分实现，领域根文件只保留该中心的编排与导航。
 - `config/` 存放声明式数据，不包含可执行代码。
 - `docs/` 存放设计、变更记录与发布流程等长篇项目文档。
 - `.github/` 存放 GitHub 工作流、社区规范与项目徽章资源。
@@ -81,7 +82,7 @@ id|category|name|description|apt packages|handler
 
 新增一个功能中心：
 
-1. 在 `src/features/<name>.sh` 实现查询和修改动作；独立应用放在 `src/features/apps/`。
+1. 在 `src/features/<name>.sh` 实现查询和修改动作；独立应用放在 `src/features/apps/`，复杂领域的专属实现放在 `src/features/<name>/`。
 2. 菜单保持一层，不跳转到另一套导航系统。
 3. 在 `bin/serverctl` 加载文件并加入顶层入口。
 4. 为输入校验、分发或安全边界补充离线测试。

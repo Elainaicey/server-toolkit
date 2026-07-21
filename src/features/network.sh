@@ -98,6 +98,37 @@ network_target_diagnose() {
   fi
 }
 
+network_dns_diagnose() {
+  local target="${1:-}" resolved
+  [[ -n "$target" ]] || target="$(read_input "待解析域名" "github.com")"
+  valid_network_target "$target" || { warn "目标格式无效。"; return 1; }
+  ui_page "DNS 诊断" "$target · 解析器配置、系统查询与 DNS 记录"
+  ui_section "解析器配置" "primary"
+  if command_exists resolvectl; then
+    resolvectl status 2>/dev/null | sed -n '1,45p' || true
+  else
+    sed -n '1,20p' /etc/resolv.conf 2>/dev/null || ui_empty "无法读取 /etc/resolv.conf"
+  fi
+  ui_section "系统解析结果" "accent"
+  resolved="$(getent ahosts "$target" 2>/dev/null | awk '!seen[$1]++ {print "  "$0}' | sed -n '1,16p' || true)"
+  if [[ -n "$resolved" ]]; then
+    printf '%s\n' "$resolved"
+    ui_check pass "系统解析器可以解析 $target"
+  else
+    ui_check fail "系统解析器无法解析 $target"
+  fi
+  ui_section "DNS 记录" "primary"
+  if command_exists dig; then
+    printf '  A     %s\n' "$(dig +short +time=3 +tries=1 A "$target" 2>/dev/null | paste -sd, - || true)"
+    printf '  AAAA  %s\n' "$(dig +short +time=3 +tries=1 AAAA "$target" 2>/dev/null | paste -sd, - || true)"
+    printf '  CNAME %s\n' "$(dig +short +time=3 +tries=1 CNAME "$target" 2>/dev/null | paste -sd, - || true)"
+  else
+    ui_empty "未安装 dnsutils，无法显示原始 A、AAAA 与 CNAME 记录"
+  fi
+  ui_note "系统解析器结果受 /etc/nsswitch.conf、缓存和本机 hosts 配置影响。"
+  [[ -n "$resolved" ]]
+}
+
 network_enable_bbr() {
   local available; available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
   ui_page "启用 BBR" "检查内核能力并写入独立 sysctl 配置"
@@ -156,27 +187,29 @@ network_menu() {
     ui_item 1 "网络概览"
     ui_item 2 "连通性检查"
     ui_item 3 "目标诊断" "DNS、路由、延迟与丢包"
-    ui_item 4 "路由表"
-    ui_item 5 "网卡流量" "本次开机累计统计"
-    ui_item 6 "连接会话" "套接字汇总与远端端点排行"
+    ui_item 4 "DNS 诊断" "解析器配置、A/AAAA/CNAME 与系统解析结果"
+    ui_item 5 "路由表"
+    ui_item 6 "网卡流量" "本次开机累计统计"
+    ui_item 7 "连接会话" "套接字汇总与远端端点排行"
     ui_section "端口与协议" "accent"
-    ui_item 7 "监听端口"
-    ui_item 8 "查询端口"
-    ui_item 9 "启用 BBR"
-    ui_item 10 "IP 地址优先级"
+    ui_item 8 "监听端口"
+    ui_item 9 "查询端口"
+    ui_item 10 "启用 BBR"
+    ui_item 11 "IP 地址优先级"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
       1) network_show ;;
       2) network_connectivity_test ;;
       3) network_target_diagnose || true ;;
-      4) network_routes ;;
-      5) network_interface_stats ;;
-      6) network_connections || true ;;
-      7) network_list_ports ;;
-      8) network_port_detail || true ;;
-      9) network_enable_bbr || true ;;
-      10) network_set_address_preference || true ;;
+      4) network_dns_diagnose "" || true ;;
+      5) network_routes ;;
+      6) network_interface_stats ;;
+      7) network_connections || true ;;
+      8) network_list_ports ;;
+      9) network_port_detail || true ;;
+      10) network_enable_bbr || true ;;
+      11) network_set_address_preference || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

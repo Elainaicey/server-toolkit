@@ -27,6 +27,7 @@ required=(
   src/core/runtime.sh
   src/core/catalog.sh
   src/features/dashboard.sh
+  src/features/system/settings.sh
   src/features/software.sh
   src/features/apps.sh
   src/features/apps/docker.sh

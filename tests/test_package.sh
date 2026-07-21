@@ -10,7 +10,8 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)
 updates=0
 captured=()
 # package_install 通过平台模块间接调用该测试桩。
-# shellcheck disable=SC2329
+# ShellCheck 0.9 使用 SC2317，新版使用 SC2329 标记间接测试桩。
+# shellcheck disable=SC2317,SC2329
 package_installed() { [[ "$1" == "curl" ]]; }
 package_update_index() { updates=$((updates + 1)); }
 apt_run() { captured=("$@"); }

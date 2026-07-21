@@ -12,7 +12,8 @@ DRY_RUN=1
 removed=""
 confirmations=0
 # software_install_docker 通过功能模块间接调用该测试桩。
-# shellcheck disable=SC2329
+# ShellCheck 0.9 使用 SC2317，新版使用 SC2329 标记间接测试桩。
+# shellcheck disable=SC2317,SC2329
 package_installed() { [[ "$1" == "containerd" ]]; }
 confirm() { confirmations=$((confirmations + 1)); return 0; }
 package_remove() { removed="$1"; }
