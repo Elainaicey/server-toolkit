@@ -72,11 +72,11 @@ sudo serverctl
 | **网络与端口** | 接口地址、路由与策略规则、DNS 解析器与记录诊断、IPv4/IPv6 连通性、目标诊断、网卡流量、连接会话、监听端口、端口进程、BBR 与地址优先级 |
 | **安全中心** | 安全基线、公网监听、UFW 状态与规则、SSH 安全向导、登录事件、Fail2ban 状态，以及带主机名匹配和到期预警的 TLS 证书检查 |
 | **服务与日志** | failed/active 服务、关键词查找、服务详情与依赖、Journal、生命周期、开机启动、Timer、启动错误、内核警告与项目操作审计 |
-| **软件管理** | 按分类、安装状态、ID、名称和用途浏览；查看当前版本、仓库候选版本与更新状态；单项安装、更新或移除 106 个常用软件条目 |
+| **软件管理** | 按分类、安装状态、ID、名称和用途浏览；识别当前软件源可用性；查看当前版本、仓库候选版本与更新状态；单项安装、更新或移除 157 个常用软件条目 |
 | **应用与容器** | Web、数据库、缓存与容器服务概览；Docker 健康检查、容器详情、日志、资源、生命周期、镜像、Compose、存储卷、网络和安全清理 |
 | **备份与恢复** | 自动配置快照、手动 `/etc` 文件快照、完整性校验、当前配置差异、安全删除与单文件恢复 |
 
-普通软件条目精确映射一个 APT 包。Docker 与 Caddy 使用各自的软件仓库流程，参考 [Docker Engine 安装文档](https://docs.docker.com/engine/install/)与 [Caddy 安装文档](https://caddyserver.com/docs/install)。
+普通软件条目精确映射一个 APT 包。Docker、Caddy 与 Oh My Zsh 使用各自的官方来源流程，参考 [Docker Engine 安装文档](https://docs.docker.com/engine/install/)、[Caddy 安装文档](https://caddyserver.com/docs/install)与 [Oh My Zsh 项目](https://github.com/ohmyzsh/ohmyzsh)。
 
 ## 命令参考
 
@@ -110,9 +110,12 @@ serverctl list python            # 按关键词查询
 sudo serverctl install jq        # 安装一个软件
 sudo serverctl update jq         # 更新一个已安装软件
 sudo serverctl remove jq         # 移除一个软件
+sudo serverctl install oh-my-zsh # 为实际登录用户安装 Oh My Zsh
 ```
 
 `install`、`update` 与 `remove` 只接受一个软件 ID。软件中心不会批量更新整个系统；所有实际修改仍需人工确认。
+
+Oh My Zsh 安装到 `SUDO_USER` 对应的 `~/.oh-my-zsh`（直接以 root 登录时为 `/root/.oh-my-zsh`），使用官方 Git 仓库并在修改前备份已有 `.zshrc`。是否切换默认 Shell 会单独询问；卸载仅删除经校验的官方仓库和工具托管的配置块，保留 Zsh、Git、其他用户配置与默认 Shell。
 
 ### 操作预览
 
@@ -171,6 +174,8 @@ server-toolkit/
 │   └── features/
 │       ├── apps/
 │       │   └── docker.sh        # Docker 独立应用实现
+│       ├── software/
+│       │   └── oh-my-zsh.sh     # Oh My Zsh 安装、更新与安全移除
 │       ├── system/
 │       │   └── settings.sh      # 主机名、时区、Swap 与维护设置
 │       └── *.sh                 # 系统、网络、安全、服务等功能中心

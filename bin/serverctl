@@ -29,6 +29,7 @@ fi
 . "$ROOT_DIR/src/core/backup.sh"
 . "$ROOT_DIR/src/core/catalog.sh"
 . "$ROOT_DIR/src/features/software.sh"
+. "$ROOT_DIR/src/features/software/oh-my-zsh.sh"
 . "$ROOT_DIR/src/features/dashboard.sh"
 . "$ROOT_DIR/src/features/system/settings.sh"
 . "$ROOT_DIR/src/features/system.sh"

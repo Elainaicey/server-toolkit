@@ -32,6 +32,7 @@ required=(
   src/features/dashboard.sh
   src/features/system/settings.sh
   src/features/software.sh
+  src/features/software/oh-my-zsh.sh
   src/features/apps.sh
   src/features/apps/docker.sh
   src/features/maintenance.sh

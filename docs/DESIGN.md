@@ -14,6 +14,7 @@ bin/serverctl
 ├── src/core/catalog.sh
 ├── src/features/*.sh
 ├── src/features/apps/docker.sh
+├── src/features/software/oh-my-zsh.sh
 ├── src/features/system/settings.sh
 └── config/software.tsv
 ```
@@ -77,6 +78,8 @@ id|category|name|description|apt packages|handler
 4. handler 只安装该产品不可分割的官方组件，不联动防火墙、SSH 或其他软件。
 5. CLI 和交互界面共用 `catalog_install` / `catalog_remove`，避免行为分叉。
 6. `serverctl install`、`update` 和 `remove` 必须且只能接收一个 ID；不提供整个目录的无监督批量更新。
+7. APT 普通条目必须检测候选版本；当前软件源不提供时显示“仓库不可用”并禁用安装，而不是执行注定失败的命令。
+8. 用户级 handler 必须明确目标用户和主目录、验证上游来源、备份已有配置，并且只移除能够证明由自身管理的内容。
 
 ## 配置与恢复
 
