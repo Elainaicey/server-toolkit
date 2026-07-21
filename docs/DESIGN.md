@@ -15,6 +15,7 @@ bin/serverctl
 ├── src/features/*.sh
 ├── src/features/apps/docker.sh
 ├── src/features/software/oh-my-zsh.sh
+├── src/features/software/prompts.sh
 ├── src/features/system/settings.sh
 └── config/software.tsv
 ```
@@ -80,6 +81,7 @@ id|category|name|description|apt packages|handler
 6. `serverctl install`、`update` 和 `remove` 必须且只能接收一个 ID；不提供整个目录的无监督批量更新。
 7. APT 普通条目必须检测候选版本；当前软件源不提供时显示“仓库不可用”并禁用安装，而不是执行注定失败的命令。
 8. 用户级 handler 必须明确目标用户和主目录、验证上游来源、备份已有配置，并且只移除能够证明由自身管理的内容。
+9. 多个提示符引擎可以共存，但同一 Shell 只能启用一个托管提示符；切换只替换带边界标记的配置块。
 
 ## 配置与恢复
 

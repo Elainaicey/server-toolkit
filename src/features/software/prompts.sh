@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+
+PROMPT_BLOCK_BEGIN="# BEGIN Server Toolkit: Prompt"
+PROMPT_BLOCK_END="# END Server Toolkit: Prompt"
+
+software_prompt_paths() {
+  local user home
+  user="$(software_target_user)"
+  home="$(software_target_home "$user")"
+  printf '%s|%s|%s|%s' "$user" "$home" "$home/.local/bin" "$home/.local/share/server-toolkit/prompts"
+}
+
+software_prompt_marker() {
+  local provider="$1" paths _user _home _bin state
+  paths="$(software_prompt_paths)"
+  IFS='|' read -r _user _home _bin state <<<"$paths"
+  printf '%s/%s.managed' "$state" "$provider"
+}
+
+software_prompt_managed() {
+  [[ -f "$(software_prompt_marker "$1")" ]]
+}
+
+software_prompt_active() {
+  local provider="$1" paths _user home _bin _state
+  paths="$(software_prompt_paths)"; IFS='|' read -r _user home _bin _state <<<"$paths"
+  grep -Fqx "# provider: $provider" "$home/.zshrc" 2>/dev/null
+}
+
+software_prompt_version() {
+  local provider="$1" paths _user home bin _state directory
+  paths="$(software_prompt_paths)"
+  IFS='|' read -r _user home bin _state <<<"$paths"
+  software_prompt_managed "$provider" || return 0
+  case "$provider" in
+    starship) "$bin/starship" --version 2>/dev/null | awk 'NR == 1 {print $2}' ;;
+    oh-my-posh) "$bin/oh-my-posh" version 2>/dev/null | awk 'NR == 1 {print $1}' ;;
+    spaceship)
+      directory="$home/.local/share/server-toolkit/prompts/spaceship"
+      git -C "$directory" rev-parse --short=12 HEAD 2>/dev/null || true
+      ;;
+  esac
+}
+
+software_prompt_installed() {
+  local provider="$1" paths _user home bin _state directory remote
+  paths="$(software_prompt_paths)"
+  IFS='|' read -r _user home bin _state <<<"$paths"
+  software_prompt_managed "$provider" || return 1
+  case "$provider" in
+    starship) [[ -x "$bin/starship" ]] ;;
+    oh-my-posh) [[ -x "$bin/oh-my-posh" ]] ;;
+    spaceship)
+      directory="$home/.local/share/server-toolkit/prompts/spaceship"
+      [[ -f "$directory/spaceship.zsh" && -d "$directory/.git" ]] || return 1
+      remote="$(git -C "$directory" remote get-url origin 2>/dev/null || true)"
+      [[ "$remote" == "https://github.com/spaceship-prompt/spaceship-prompt.git" || "$remote" == "https://github.com/spaceship-prompt/spaceship-prompt" ]]
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+software_prompt_remove_block() {
+  local zshrc="$1" temporary
+  [[ -f "$zshrc" ]] || return 0
+  grep -Fq "$PROMPT_BLOCK_BEGIN" "$zshrc" || return 0
+  grep -Fq "$PROMPT_BLOCK_END" "$zshrc" || { warn "$zshrc 中的提示符托管块不完整，已保留原文件。"; return 1; }
+  temporary="$(mktemp)"
+  awk -v begin="$PROMPT_BLOCK_BEGIN" -v end="$PROMPT_BLOCK_END" '
+    $0 == begin {managed=1; next}
+    $0 == end && managed {managed=0; next}
+    !managed {print}
+  ' "$zshrc" >"$temporary"
+  printf '%s' "$temporary"
+}
+
+software_prompt_activate() {
+  local provider="$1" user="$2" home="$3" zshrc="$3/.zshrc" temporary="" init_line separator=""
+  case "$provider" in
+    starship) init_line="eval \"\$(starship init zsh)\"" ;;
+    oh-my-posh) init_line="eval \"\$(oh-my-posh init zsh --strict)\"" ;;
+    spaceship) init_line="source \"\$HOME/.local/share/server-toolkit/prompts/spaceship/spaceship.zsh\"" ;;
+    *) die "未知提示符引擎：$provider" ;;
+  esac
+  if [[ -f "$zshrc" ]] && ! grep -Fq "$PROMPT_BLOCK_BEGIN" "$zshrc" && \
+     grep -Eq 'starship init|oh-my-posh init|spaceship[^[:space:]]*\.zsh' "$zshrc"; then
+    die "$zshrc 已包含非 Server Toolkit 托管的提示符配置，请先手动确认或移除该配置。"
+  fi
+  backup_file "$zshrc"
+  if [[ "$DRY_RUN" -eq 1 ]]; then info "将把 $provider 设置为 $user 的活动 Zsh 提示符。"; return 0; fi
+  temporary="$(software_prompt_remove_block "$zshrc")" || return 1
+  if [[ -n "$temporary" ]]; then
+    install -m 0644 "$temporary" "$zshrc"
+    rm -f "$temporary"
+  fi
+  [[ ! -s "$zshrc" ]] || separator=$'\n'
+  printf '%s%s\n%s\n%s\n%s\n%s\n' "$separator" "$PROMPT_BLOCK_BEGIN" \
+    "# provider: $provider" "export PATH=\"\$HOME/.local/bin:\$PATH\"" "$init_line" "$PROMPT_BLOCK_END" >>"$zshrc"
+  if [[ "$EUID" -eq 0 ]]; then chown "$user":"$(id -gn "$user")" "$zshrc"; fi
+}
+
+software_prompt_mark() {
+  local provider="$1" user="$2" home="$3" state="$3/.local/share/server-toolkit/prompts"
+  if [[ "$DRY_RUN" -eq 1 ]]; then return 0; fi
+  software_run_as_target "$user" "$home" mkdir -p "$state"
+  software_run_as_target "$user" "$home" touch "$state/$provider.managed"
+}
+
+software_prompt_download_installer() {
+  local url="$1" target
+  target="$(mktemp)"
+  if ! curl -fsSL "$url" -o "$target"; then rm -f "$target"; die "下载官方安装程序失败：$url"; fi
+  chmod 0755 "$target"
+  printf '%s' "$target"
+}
+
+software_install_starship() {
+  local paths user home bin _state installer
+  paths="$(software_prompt_paths)"; IFS='|' read -r user home bin _state <<<"$paths"
+  [[ ! -e "$bin/starship" ]] || software_prompt_managed starship || die "$bin/starship 已存在且不由 Server Toolkit 管理。"
+  package_install curl ca-certificates
+  software_run_as_target "$user" "$home" mkdir -p "$bin"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    info "将从 Starship 官方安装器部署到 $bin。"
+  else
+    installer="$(software_prompt_download_installer https://starship.rs/install.sh)"
+    software_run_as_target "$user" "$home" sh "$installer" -y -b "$bin"
+    rm -f "$installer"
+  fi
+  software_prompt_mark starship "$user" "$home"
+  software_prompt_activate starship "$user" "$home"
+}
+
+software_install_oh_my_posh() {
+  local paths user home bin _state installer
+  paths="$(software_prompt_paths)"; IFS='|' read -r user home bin _state <<<"$paths"
+  [[ ! -e "$bin/oh-my-posh" ]] || software_prompt_managed oh-my-posh || die "$bin/oh-my-posh 已存在且不由 Server Toolkit 管理。"
+  package_install curl ca-certificates unzip
+  software_run_as_target "$user" "$home" mkdir -p "$bin"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    info "将从 Oh My Posh 官方安装器部署到 $bin。"
+  else
+    installer="$(software_prompt_download_installer https://ohmyposh.dev/install.sh)"
+    software_run_as_target "$user" "$home" bash "$installer" -d "$bin"
+    rm -f "$installer"
+  fi
+  software_prompt_mark oh-my-posh "$user" "$home"
+  software_prompt_activate oh-my-posh "$user" "$home"
+}
+
+software_install_spaceship() {
+  local paths user home _bin state directory
+  paths="$(software_prompt_paths)"; IFS='|' read -r user home _bin state <<<"$paths"
+  directory="$state/spaceship"
+  safe_managed_path "$directory" || die "Spaceship 目标路径不安全：$directory"
+  [[ ! -e "$directory" ]] || software_prompt_managed spaceship || die "$directory 已存在且不由 Server Toolkit 管理。"
+  package_install zsh git
+  software_run_as_target "$user" "$home" mkdir -p "$state"
+  software_run_as_target "$user" "$home" git clone --depth=1 https://github.com/spaceship-prompt/spaceship-prompt.git "$directory"
+  software_prompt_mark spaceship "$user" "$home"
+  software_prompt_activate spaceship "$user" "$home"
+}
+
+software_update_prompt() {
+  local provider="$1" paths user home bin state installer
+  paths="$(software_prompt_paths)"; IFS='|' read -r user home bin state <<<"$paths"
+  software_prompt_installed "$provider" || die "$provider 未由 Server Toolkit 安装。"
+  if [[ "$DRY_RUN" -eq 1 ]]; then info "将从 $provider 官方来源检查并安装最新版本。"; return 0; fi
+  case "$provider" in
+    starship)
+      installer="$(software_prompt_download_installer https://starship.rs/install.sh)"
+      software_run_as_target "$user" "$home" sh "$installer" -y -b "$bin"; rm -f "$installer"
+      ;;
+    oh-my-posh)
+      installer="$(software_prompt_download_installer https://ohmyposh.dev/install.sh)"
+      software_run_as_target "$user" "$home" bash "$installer" -d "$bin"; rm -f "$installer"
+      ;;
+    spaceship) software_run_as_target "$user" "$home" git -C "$state/spaceship" pull --ff-only ;;
+  esac
+}
+
+software_activate_prompt() {
+  local provider="$1" paths user home _bin _state
+  paths="$(software_prompt_paths)"; IFS='|' read -r user home _bin _state <<<"$paths"
+  software_prompt_installed "$provider" || die "$provider 未由 Server Toolkit 安装。"
+  software_prompt_activate "$provider" "$user" "$home"
+}
+
+software_remove_prompt() {
+  local provider="$1" paths user home bin state zshrc temporary=""
+  paths="$(software_prompt_paths)"; IFS='|' read -r user home bin state <<<"$paths"
+  software_prompt_installed "$provider" || die "$provider 未由 Server Toolkit 安装。"
+  zshrc="$home/.zshrc"; backup_file "$zshrc"
+  safe_managed_path "$state" || die "提示符状态路径不安全：$state"
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    if grep -Fq "# provider: $provider" "$zshrc" 2>/dev/null; then
+      temporary="$(software_prompt_remove_block "$zshrc")" || return 1
+      [[ -z "$temporary" ]] || { install -m 0644 "$temporary" "$zshrc"; rm -f "$temporary"; }
+    fi
+    case "$provider" in
+      starship) rm -f -- "$bin/starship" ;;
+      oh-my-posh) rm -f -- "$bin/oh-my-posh" ;;
+      spaceship) rm -rf -- "$state/spaceship" ;;
+    esac
+    rm -f -- "$state/$provider.managed"
+    if [[ "$EUID" -eq 0 && -f "$zshrc" ]]; then chown "$user":"$(id -gn "$user")" "$zshrc"; fi
+  fi
+  info "已保留其他提示符、Oh My Zsh、用户自定义配置和 Nerd Font。"
+}

@@ -42,6 +42,9 @@ aria2|命令行|aria2|多协议并行下载工具|aria2|
 httpie|命令行|HTTPie|面向人类的 HTTP 命令行客户端|httpie|
 zsh|终端美化|Zsh|可扩展的交互式命令行 Shell|zsh|
 oh-my-zsh|终端美化|Oh My Zsh|Zsh 配置框架，提供主题、插件与更新能力||oh_my_zsh
+starship|终端美化|Starship|快速、跨 Shell、可高度定制的现代提示符||starship_prompt
+oh-my-posh|终端美化|Oh My Posh|跨平台、多主题的可定制提示符引擎||oh_my_posh_prompt
+spaceship|终端美化|Spaceship Prompt|面向 Zsh 的轻量、强大且可定制提示符||spaceship_prompt
 zsh-autosuggestions|终端美化|Zsh Autosuggestions|根据历史命令提供灰色自动建议|zsh-autosuggestions|
 zsh-syntax-highlighting|终端美化|Zsh Syntax Highlighting|为输入中的命令和参数提供语法高亮|zsh-syntax-highlighting|
 powerline|终端美化|Powerline|为 Shell 与终端应用提供状态栏|powerline|

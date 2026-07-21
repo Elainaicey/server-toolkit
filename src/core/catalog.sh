@@ -2,6 +2,15 @@
 
 SOFTWARE_CATALOG="${SERVER_TOOLKIT_CATALOG:-$CONFIG_DIR/software.tsv}"
 
+catalog_prompt_provider() {
+  case "$1" in
+    starship_prompt) printf 'starship' ;;
+    oh_my_posh_prompt) printf 'oh-my-posh' ;;
+    spaceship_prompt) printf 'spaceship' ;;
+    *) return 1 ;;
+  esac
+}
+
 catalog_rows() {
   local query="${1:-}"
   [[ -r "$SOFTWARE_CATALOG" ]] || die "软件目录不可读：$SOFTWARE_CATALOG"
@@ -47,6 +56,9 @@ catalog_primary_package() {
       ;;
     caddy_official) printf 'caddy' ;;
     oh_my_zsh) printf 'oh-my-zsh' ;;
+    starship_prompt) printf 'starship' ;;
+    oh_my_posh_prompt) printf 'oh-my-posh' ;;
+    spaceship_prompt) printf 'spaceship' ;;
     *) printf '%s' "$packages" ;;
   esac
 }
@@ -58,16 +70,24 @@ catalog_installed() {
     docker_official) command_exists docker ;;
     caddy_official) command_exists caddy ;;
     oh_my_zsh) software_oh_my_zsh_installed ;;
+    starship_prompt) software_prompt_installed starship ;;
+    oh_my_posh_prompt) software_prompt_installed oh-my-posh ;;
+    spaceship_prompt) software_prompt_installed spaceship ;;
     "") package_installed "$packages" ;;
     *) return 1 ;;
   esac
 }
 
 catalog_installed_version() {
-  local record="$1" _id _category _name _description _packages handler package version
+  local record="$1" _id _category _name _description _packages handler package version provider
   IFS='|' read -r _id _category _name _description _packages handler <<<"$record"
   if [[ "$handler" == "oh_my_zsh" ]]; then
     version="$(software_oh_my_zsh_version)"
+    printf '%s' "${version:-—}"
+    return 0
+  fi
+  if provider="$(catalog_prompt_provider "$handler" 2>/dev/null)"; then
+    version="$(software_prompt_version "$provider")"
     printf '%s' "${version:-—}"
     return 0
   fi
@@ -83,10 +103,14 @@ catalog_installed_version() {
 }
 
 catalog_candidate_version() {
-  local record="$1" _id _category _name _description _packages handler package
+  local record="$1" _id _category _name _description _packages handler package provider
   IFS='|' read -r _id _category _name _description _packages handler <<<"$record"
   if [[ "$handler" == "oh_my_zsh" ]]; then
     printf '官方 master 分支'
+    return 0
+  fi
+  if catalog_prompt_provider "$handler" >/dev/null 2>&1; then
+    printf '官方最新版本'
     return 0
   fi
   package="$(catalog_primary_package "$record")"
@@ -101,6 +125,7 @@ catalog_has_update() {
   catalog_installed "$record" || return 1
   IFS='|' read -r _id _category _name _description _packages handler <<<"$record"
   [[ "$handler" != "oh_my_zsh" ]] || return 1
+  catalog_prompt_provider "$handler" >/dev/null 2>&1 && return 1
   package="$(catalog_primary_package "$record")"
   package_has_update "$package"
 }
@@ -209,10 +234,24 @@ catalog_packages() {
 }
 
 catalog_install() {
-  local id="$1" record _id category name description packages handler source_label
+  local id="$1" record _id category name description packages handler source_label provider
   record="$(catalog_record "$id")" || { warn "软件目录中没有 '$id'。"; return 1; }
   IFS='|' read -r _id category name description packages handler <<<"$record"
-  catalog_installed "$record" && { info "$name 已经安装。"; return 0; }
+  if catalog_installed "$record"; then
+    if provider="$(catalog_prompt_provider "$handler" 2>/dev/null)"; then
+      software_prompt_active "$provider" && { info "$name 已经安装并处于启用状态。"; return 0; }
+      ui_page "启用提示符 / $name" "$id · $category"
+      ui_note "该操作只切换 Server Toolkit 托管的活动提示符，不卸载其他引擎。"
+      confirm "将 $name 设为当前 Zsh 提示符？" || return 0
+      require_root
+      software_activate_prompt "$provider"
+      audit "action=prompt-activate id=$id"
+      ui_success "$name 已启用；重新进入 Zsh 后生效。"
+      return 0
+    fi
+    info "$name 已经安装。"
+    return 0
+  fi
   catalog_available "$record" || { warn "当前系统软件源未提供 $name，请先检查软件源或系统版本。"; return 1; }
   ui_page "安装软件 / $name" "$id · $category"
   ui_panel_begin "变更摘要"
@@ -221,12 +260,17 @@ catalog_install() {
   source_label="系统软件仓库"
   [[ -z "$handler" ]] || source_label="官方软件仓库"
   [[ "$handler" != "oh_my_zsh" ]] || source_label="Oh My Zsh 官方 Git 仓库"
+  if catalog_prompt_provider "$handler" >/dev/null 2>&1; then source_label="项目官方发布渠道"; fi
   ui_panel_kv "来源" "$source_label"
   ui_panel_kv "目标版本" "$(catalog_candidate_version "$record")" "$GREEN"
   if [[ "$handler" == "oh_my_zsh" ]]; then
     ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
     ui_panel_kv "目标目录" "$(software_oh_my_zsh_path)"
     ui_panel_kv "必要依赖" "zsh + git"
+  elif catalog_prompt_provider "$handler" >/dev/null 2>&1; then
+    ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+    ui_panel_kv "配置文件" "$(software_target_home "$(software_target_user)")/.zshrc"
+    ui_panel_kv "提示" "安装后会切换为当前提示符；其他已安装提示符保留"
   elif [[ -n "$packages" ]]; then
     ui_panel_kv "系统包" "$packages"
   fi
@@ -237,6 +281,9 @@ catalog_install() {
     docker_official) software_install_docker ;;
     caddy_official) software_install_caddy ;;
     oh_my_zsh) software_install_oh_my_zsh ;;
+    starship_prompt) software_install_starship ;;
+    oh_my_posh_prompt) software_install_oh_my_posh ;;
+    spaceship_prompt) software_install_spaceship ;;
     "") package_install "$packages" ;;
     *) die "未知安装器：$handler" ;;
   esac
@@ -245,12 +292,26 @@ catalog_install() {
 }
 
 catalog_update() {
-  local id="$1" record _id category name description packages handler installed candidate
+  local id="$1" record _id category name description packages handler installed candidate provider
   record="$(catalog_record "$id")" || { warn "软件目录中没有 '$id'。"; return 1; }
   IFS='|' read -r _id category name description packages handler <<<"$record"
   catalog_installed "$record" || { warn "$name 尚未安装，请先执行安装。"; return 1; }
   installed="$(catalog_installed_version "$record")"
   candidate="$(catalog_candidate_version "$record")"
+  if provider="$(catalog_prompt_provider "$handler" 2>/dev/null)"; then
+    ui_page "更新提示符 / $name" "$id · $category"
+    ui_panel_begin "官方更新"
+    ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+    ui_panel_kv "当前版本" "$installed" "$WHITE"
+    ui_panel_kv "更新来源" "$candidate" "$YELLOW"
+    ui_panel_end
+    confirm "检查并更新 $name？" || return 0
+    require_root
+    software_update_prompt "$provider"
+    audit "action=software-update id=$id from=$installed"
+    ui_success "$name 已检查并更新。"
+    return 0
+  fi
   if [[ "$handler" == "oh_my_zsh" ]]; then
     ui_page "更新软件 / $name" "$id · $category"
     ui_panel_begin "官方 Git 更新"
@@ -293,6 +354,9 @@ catalog_update() {
     docker_official) software_update_docker ;;
     caddy_official) software_update_caddy ;;
     oh_my_zsh) software_update_oh_my_zsh ;;
+    starship_prompt) software_update_prompt starship ;;
+    oh_my_posh_prompt) software_update_prompt oh-my-posh ;;
+    spaceship_prompt) software_update_prompt spaceship ;;
     "") package_upgrade "$packages" ;;
     *) die "未知安装器：$handler" ;;
   esac
@@ -312,12 +376,17 @@ catalog_remove() {
   if [[ "$handler" == "oh_my_zsh" ]]; then
     ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
     ui_panel_kv "目标目录" "$(software_oh_my_zsh_path)"
+  elif catalog_prompt_provider "$handler" >/dev/null 2>&1; then
+    ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+    ui_panel_kv "配置文件" "$(software_target_home "$(software_target_user)")/.zshrc"
   else
     ui_panel_kv "系统包" "${packages:-由官方安装器管理}"
   fi
   ui_panel_end
   if [[ "$handler" == "oh_my_zsh" ]]; then
     ui_danger "将移除官方框架目录和 Server Toolkit 托管的 .zshrc 配置块；保留其他用户配置、Zsh、Git 与默认 Shell。"
+  elif catalog_prompt_provider "$handler" >/dev/null 2>&1; then
+    ui_danger "只移除当前提示符的托管文件和活动配置块；其他提示符与用户配置保持不变。"
   else
     ui_danger "只移除软件包，不删除它的数据目录和配置文件。"
   fi
@@ -327,6 +396,9 @@ catalog_remove() {
     docker_official) software_remove_docker ;;
     caddy_official) software_remove_caddy ;;
     oh_my_zsh) software_remove_oh_my_zsh ;;
+    starship_prompt) software_remove_prompt starship ;;
+    oh_my_posh_prompt) software_remove_prompt oh-my-posh ;;
+    spaceship_prompt) software_remove_prompt spaceship ;;
     "") package_remove "$packages" ;;
     *) die "未知安装器：$handler" ;;
   esac
@@ -335,7 +407,7 @@ catalog_remove() {
 }
 
 catalog_item_menu() {
-  local id="$1" record _id category name description packages handler choice state source_label installed candidate
+  local id="$1" record _id category name description packages handler choice state source_label installed candidate provider
   record="$(catalog_record "$id")" || return 1
   IFS='|' read -r _id category name description packages handler <<<"$record"
   while true; do
@@ -345,6 +417,7 @@ catalog_item_menu() {
     source_label="系统软件仓库"
     if [[ -n "$handler" ]]; then source_label="官方软件仓库"; fi
     if [[ "$handler" == "oh_my_zsh" ]]; then source_label="Oh My Zsh 官方 Git 仓库"; fi
+    if catalog_prompt_provider "$handler" >/dev/null 2>&1; then source_label="项目官方发布渠道"; fi
     if [[ "$handler" == "docker_official" ]] && package_installed docker.io; then source_label="系统软件仓库（现有安装）"; fi
     ui_page "软件管理 / $name" "$id · $category"
     ui_panel_begin "软件信息"
@@ -357,11 +430,16 @@ catalog_item_menu() {
       ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
       ui_panel_kv "目标目录" "$(software_oh_my_zsh_path)"
       ui_panel_kv "必要依赖" "zsh + git"
+    elif catalog_prompt_provider "$handler" >/dev/null 2>&1; then
+      ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+      ui_panel_kv "配置文件" "$(software_target_home "$(software_target_user)")/.zshrc"
+      ui_panel_kv "切换规则" "同一时间只激活一个托管提示符"
     else
       ui_panel_kv "系统包" "${packages:-由官方安装器管理}"
     fi
     ui_panel_end
     ui_section "可用操作" "primary"
+    provider="$(catalog_prompt_provider "$handler" 2>/dev/null || true)"
     if [[ "$state" == "unavailable" ]]; then
       ui_action 1 "安装" "disabled" "当前系统软件源未提供"
       ui_action 2 "更新" "disabled" "需要先安装"
@@ -371,8 +449,16 @@ catalog_item_menu() {
       ui_action 2 "更新" "disabled" "需要先安装"
       ui_action 3 "移除" "disabled" "当前未安装"
     else
-      ui_action 1 "安装" "disabled" "已经安装"
-      if [[ "$state" == "update" ]]; then
+      if [[ -n "$provider" ]] && ! software_prompt_active "$provider"; then
+        ui_action 1 "启用" "success" "切换为当前 Zsh 提示符"
+      elif [[ -n "$provider" ]]; then
+        ui_action 1 "已启用" "disabled" "当前活动提示符"
+      else
+        ui_action 1 "安装" "disabled" "已经安装"
+      fi
+      if [[ -n "$provider" ]]; then
+        ui_action 2 "检查更新" "action" "从项目官方来源安装最新版本"
+      elif [[ "$state" == "update" ]]; then
         ui_action 2 "更新" "warning" "$installed → $candidate"
       else
         ui_action 2 "检查更新" "action" "刷新索引并重新检查"
@@ -387,6 +473,8 @@ catalog_item_menu() {
           catalog_install "$id" || true
         elif [[ "$state" == "unavailable" ]]; then
           warn "当前系统软件源未提供 $name。"
+        elif [[ -n "$provider" ]] && ! software_prompt_active "$provider"; then
+          catalog_install "$id" || true
         else
           warn "$name 已经安装。"
         fi
