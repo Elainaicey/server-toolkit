@@ -12,10 +12,16 @@ done < <(find bin src scripts tests -type f \( -name '*.sh' -o -path 'bin/server
 bash -n install.sh
 
 if command -v shellcheck >/dev/null 2>&1; then
-  printf '[check] ShellCheck\n'
+  printf '[check] ShellCheck（逐文件）\n'
   # SC1090/SC1091: 入口根据运行时 ROOT_DIR 加载项目文件。
-  mapfile -t shell_files < <(find bin src scripts tests -type f \( -name '*.sh' -o -path 'bin/serverctl' \) -print | sort)
-  shellcheck -e SC1090,SC1091 install.sh "${shell_files[@]}"
+  shellcheck_status=0
+  while IFS= read -r file; do
+    shellcheck -e SC1090,SC1091 "$file" || shellcheck_status=1
+  done < <(
+    printf '%s\n' install.sh
+    find bin src scripts tests -type f \( -name '*.sh' -o -path 'bin/serverctl' \) -print | sort
+  )
+  (( shellcheck_status == 0 )) || exit 1
 else
   printf '[check] 未安装 shellcheck，跳过静态检查\n'
 fi

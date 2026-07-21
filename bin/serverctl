@@ -8,6 +8,8 @@ while [[ -L "$ENTRY" ]]; do
   ENTRY="$(readlink "$ENTRY")"; [[ "$ENTRY" == /* ]] || ENTRY="$ENTRY_DIR/$ENTRY"
 done
 ROOT_DIR="${SERVER_TOOLKIT_ROOT:-$(cd -P -- "$(dirname -- "$ENTRY")/.." >/dev/null 2>&1 && pwd)}"
+# 后续加载的软件目录模块消费该全局路径；单文件分析无法跟踪动态 source。
+# shellcheck disable=SC2034
 CONFIG_DIR="${SERVER_TOOLKIT_CONFIG_DIR:-$ROOT_DIR/config}"
 SERVERCTL_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 INSTALL_METADATA="$ROOT_DIR/config/installation.conf"
@@ -112,8 +114,16 @@ main() {
   local arguments=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --dry-run) DRY_RUN=1 ;;
-      --no-color) NO_COLOR=1 ;;
+      --dry-run)
+        # 由随后加载的运行时与功能模块消费。
+        # shellcheck disable=SC2034
+        DRY_RUN=1
+        ;;
+      --no-color)
+        # 由随后加载的 UI 模块消费。
+        # shellcheck disable=SC2034
+        NO_COLOR=1
+        ;;
       -h|--help|help) runtime_init; usage; return 0 ;;
       --*) die "未知选项：$1" ;;
       *) if [[ "$command_set" -eq 0 ]]; then command="$1"; command_set=1; else arguments+=("$1"); fi ;;

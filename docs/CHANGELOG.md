@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- CI 改为逐个检查每个 Shell 文件，并为跨模块全局变量与测试桩补充精确的 ShellCheck 说明
 - 增加综合系统健康巡检，汇总资源、存储、systemd、软件更新、DNS、HTTPS、时间同步、防火墙和 SSH 状态
 - 增加 `serverctl health`、`serverctl updates`、`serverctl storage` 与 `serverctl logs SERVICE` 直接命令
 - 将软件包状态页扩展为更新版本清单、保留包、dpkg 审计与缓存摘要

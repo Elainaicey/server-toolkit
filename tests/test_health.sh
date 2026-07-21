@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 本文件定义的全局变量均为被加载健康巡检模块消费的测试夹具。
+# shellcheck disable=SC2034
 set -Eeuo pipefail
 IFS=$'\n\t'
 

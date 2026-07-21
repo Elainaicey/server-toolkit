@@ -39,6 +39,8 @@ backup_delete 20260719-120000-42 >/dev/null
   exit 1
 }
 
+# backup_delete 从运行时读取该全局开关。
+# shellcheck disable=SC2034
 DRY_RUN=0
 backup_delete 20260719-120000-42
 [[ ! -e "$SERVER_TOOLKIT_BACKUP_ROOT/20260719-120000-42" ]] || {
