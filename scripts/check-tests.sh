@@ -17,7 +17,8 @@ awk -F '|' '
 ' config/software.tsv
 
 printf '[tests] CLI 冒烟测试\n'
-[[ "$(bash bin/serverctl version)" == "Server Toolkit 0.1.0" ]]
+expected_version="$(tr -d '[:space:]' < VERSION)"
+[[ "$(bash bin/serverctl version)" == "Server Toolkit $expected_version" ]]
 bash bin/serverctl --help | grep -q '一次只接受一个软件 ID'
 bash bin/serverctl --help | grep -q 'update ID'
 bash bin/serverctl --help | grep -q 'health'

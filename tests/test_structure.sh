@@ -70,8 +70,8 @@ for legacy in serverctl.sh lib features catalog profiles modules; do
   [[ ! -e "$ROOT_DIR/$legacy" ]] || { printf 'FAIL: 旧路径仍然存在：%s\n' "$legacy" >&2; exit 1; }
 done
 
-[[ "$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")" == "0.1.0" ]] || {
-  printf 'FAIL: VERSION 不是 0.1.0\n' >&2
+[[ "$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")" == "0.2.0" ]] || {
+  printf 'FAIL: VERSION 不是 0.2.0\n' >&2
   exit 1
 }
 

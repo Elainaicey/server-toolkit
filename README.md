@@ -254,5 +254,5 @@ Server Toolkit 依据 [MIT License](LICENSE) 开放源代码。你可以自由�
 ---
 
 <div align="center">
-  <sub>Server Toolkit 0.1.0 · Built for deliberate VPS operations</sub>
+  <sub>Server Toolkit 0.2.0 · Built for deliberate VPS operations</sub>
 </div>
