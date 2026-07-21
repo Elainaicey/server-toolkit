@@ -38,13 +38,15 @@ fi
 . "$ROOT_DIR/src/features/maintenance.sh"
 
 usage() {
+  printf 'Server Toolkit %s\n\n' "$SERVERCTL_VERSION"
   cat <<'EOF'
-Server Toolkit 0.1.0
-
 用法：
   serverctl                       打开交互控制台
   serverctl status                显示系统仪表盘
+  serverctl health                运行综合系统健康巡检
   serverctl doctor                运行环境检查
+  serverctl updates               查看系统软件包更新清单
+  serverctl storage               运行存储诊断
   serverctl list [关键词]         查询软件目录
   serverctl install ID            安装一个软件
   serverctl update ID             更新一个已安装软件
@@ -54,6 +56,7 @@ Server Toolkit 0.1.0
   serverctl network               打开网络与端口中心
   serverctl security              打开安全中心
   serverctl services              打开服务与日志中心
+  serverctl logs SERVICE          查看一个 systemd 服务的最近日志
   serverctl apps                  打开应用与容器中心
   serverctl backups               打开备份与恢复中心
   serverctl about                 显示项目与安装信息
@@ -125,10 +128,24 @@ main() {
       platform_detect
       dashboard_show
       ;;
+    health)
+      ((${#arguments[@]} == 0)) || die "health 不接受参数"
+      system_health_report
+      ;;
     doctor)
       ((${#arguments[@]} == 0)) || die "doctor 不接受参数"
       platform_detect
       system_doctor
+      ;;
+    updates)
+      ((${#arguments[@]} == 0)) || die "updates 不接受参数"
+      platform_detect
+      system_package_health
+      ;;
+    storage)
+      ((${#arguments[@]} == 0)) || die "storage 不接受参数"
+      platform_detect
+      system_disk_usage
       ;;
     list)
       ((${#arguments[@]} <= 1)) || die "list 最多接受一个关键词"
@@ -174,6 +191,12 @@ main() {
       ((${#arguments[@]} == 0)) || die "services 不接受参数"
       platform_detect
       services_menu
+      ;;
+    logs)
+      ((${#arguments[@]} == 1)) || die "logs 需要且只接受一个服务名"
+      valid_service_name "${arguments[0]}" || die "服务名格式无效"
+      service_exists "${arguments[0]}" || die "没有找到服务：${arguments[0]}"
+      services_logs "${arguments[0]}"
       ;;
     apps)
       ((${#arguments[@]} == 0)) || die "apps 不接受参数"

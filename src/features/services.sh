@@ -26,9 +26,23 @@ services_logs() {
   journalctl -u "$service" -n 100 --no-pager 2>/dev/null || warn "无法读取日志。"
 }
 
+services_search() {
+  local query service
+  query="$(read_input "服务关键词" "")"; [[ -n "$query" ]] || return 0
+  [[ "$query" =~ ^[a-zA-Z0-9@_.:-]+$ ]] || { warn "关键词格式无效。"; return 1; }
+  ui_page "查找 systemd 服务" "$query · 匹配单元名或描述"
+  systemctl list-units --all --type=service --no-legend --no-pager 2>/dev/null |
+    awk -v query="$query" 'BEGIN{query=tolower(query)} index(tolower($0),query){print "  "$0; found=1} END{if(!found)print "  — 没有匹配的服务"}' |
+    sed -n '1,80p'
+  service="$(read_input "输入完整服务名进行管理；输入 0 返回" "0")"
+  [[ "$service" == "0" ]] && return 0
+  valid_service_name "$service" || { warn "服务名格式无效。"; return 1; }
+  services_select "$service"
+}
+
 services_select() {
-  local service action state enabled
-  service="$(read_input "服务名（例如 nginx.service）" "")"
+  local service="${1:-}" action state enabled description substate main_pid restarts started
+  [[ -n "$service" ]] || service="$(read_input "服务名（例如 nginx.service）" "")"
   [[ -n "$service" ]] || return 0
   valid_service_name "$service" || { warn "服务名格式无效。"; return 1; }
   service_exists "$service" || { warn "没有找到服务：$service"; return 1; }
@@ -36,33 +50,45 @@ services_select() {
     state="$(service_state "$service")"
     enabled="$(systemctl is-enabled "$service" 2>/dev/null || true)"
     enabled="${enabled:-disabled}"
+    description="$(systemctl show "$service" -p Description --value 2>/dev/null || true)"
+    substate="$(systemctl show "$service" -p SubState --value 2>/dev/null || true)"
+    main_pid="$(systemctl show "$service" -p MainPID --value 2>/dev/null || true)"
+    restarts="$(systemctl show "$service" -p NRestarts --value 2>/dev/null || true)"
+    started="$(systemctl show "$service" -p ActiveEnterTimestamp --value 2>/dev/null || true)"
     ui_page "服务管理 / $service" "状态、日志、生命周期与开机启动"
     ui_panel_begin "服务信息"
+    ui_panel_kv "说明" "${description:-—}"
     if [[ "$state" == "active" ]]; then ui_panel_kv "状态" "● $state" "$GREEN"; else ui_panel_kv "状态" "● $state" "$YELLOW"; fi
+    ui_panel_kv "子状态" "${substate:-—}"
     ui_panel_kv "开机启动" "$enabled"
+    ui_panel_kv "主进程 PID" "${main_pid:-0}"
+    ui_panel_kv "重启次数" "${restarts:-0}"
+    ui_panel_kv "进入状态时间" "${started:-—}"
     ui_panel_end
     ui_section "查看" "primary"
     ui_action 1 "查看状态" "action"
     ui_action 2 "查看日志" "action"
+    ui_action 3 "查看依赖关系" "action"
     ui_section "生命周期" "accent"
-    ui_action 3 "启动" "success"
-    ui_action 4 "停止" "danger"
-    ui_action 5 "重启" "warning"
-    ui_action 6 "启用开机启动" "success"
-    ui_action 7 "禁用开机启动" "danger"
+    ui_action 4 "启动" "success"
+    ui_action 5 "停止" "danger"
+    ui_action 6 "重启" "warning"
+    ui_action 7 "启用开机启动" "success"
+    ui_action 8 "禁用开机启动" "danger"
     ui_action 0 "返回" "muted"
     action="$(read_input "请选择" "0")"
     case "$action" in
       1) systemctl status "$service" --no-pager || true; pause ;;
       2) services_logs "$service"; pause ;;
-      3|4|5|6|7)
+      3) systemctl list-dependencies "$service" --no-pager 2>/dev/null || true; pause ;;
+      4|5|6|7|8)
         local verb
         case "$action" in
-          3) verb=start ;;
-          4) verb=stop ;;
-          5) verb=restart ;;
-          6) verb=enable ;;
-          7) verb=disable ;;
+          4) verb=start ;;
+          5) verb=stop ;;
+          6) verb=restart ;;
+          7) verb=enable ;;
+          8) verb=disable ;;
         esac
         confirm "对 $service 执行 $verb？" || continue
         require_root
@@ -92,22 +118,24 @@ services_menu() {
     ui_section "服务状态" "primary"
     ui_item 1 "失败的服务" "优先处理异常单元"
     ui_item 2 "运行中的服务"
-    ui_item 3 "管理一个服务" "状态、日志、启动、停止与开机启动"
+    ui_item 3 "查找服务" "按名称筛选并进入管理"
+    ui_item 4 "管理一个服务" "状态、详情、日志、依赖与生命周期"
     ui_section "日志与计划" "accent"
-    ui_item 4 "启动错误" "本次开机的 error 级别 Journal"
-    ui_item 5 "systemd Timer"
-    ui_item 6 "Journal 与内核警告"
-    ui_item 7 "项目操作记录"
+    ui_item 5 "启动错误" "本次开机的 error 级别 Journal"
+    ui_item 6 "systemd Timer"
+    ui_item 7 "Journal 与内核警告"
+    ui_item 8 "项目操作记录"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
     case "$choice" in
       1) services_failed ;;
       2) services_running ;;
-      3) services_select || true ;;
-      4) services_boot_errors ;;
-      5) services_timers ;;
-      6) services_journal_info ;;
-      7) services_audit_log ;;
+      3) services_search || true ;;
+      4) services_select || true ;;
+      5) services_boot_errors ;;
+      6) services_timers ;;
+      7) services_journal_info ;;
+      8) services_audit_log ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;
     esac

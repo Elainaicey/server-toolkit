@@ -146,6 +146,16 @@ ui_status() {
   ui_kv "$label" "● $value" "$color"
 }
 
+ui_check() {
+  local state="$1" message="$2"
+  case "$state" in
+    pass) printf '  %b✓%b %s\n' "$GREEN" "$NC" "$message" ;;
+    warn) printf '  %b!%b %s\n' "$YELLOW" "$NC" "$message" ;;
+    fail) printf '  %b×%b %s\n' "$RED" "$NC" "$message" ;;
+    *) die "未知检查状态：$state" ;;
+  esac
+}
+
 ui_progress() {
   local label="$1" current="$2" total="$3" unit="${4:-}" percent=0 filled empty color="$GREEN"
   if [[ "$current" =~ ^[0-9]+$ && "$total" =~ ^[0-9]+$ ]] && (( total > 0 )); then
@@ -190,6 +200,14 @@ ui_stats() {
     "$MUTED" "$label1" "$NC" "$CYAN$BOLD" "$value1" "$NC" \
     "$MUTED" "$label2" "$NC" "$GREEN$BOLD" "$value2" "$NC" \
     "$MUTED" "$label3" "$NC" "$YELLOW$BOLD" "$value3" "$NC"
+}
+
+ui_health_summary() {
+  local passed="$1" warnings="$2" failures="$3"
+  printf '\n  %b通过%b %b%s%b   %b关注%b %b%s%b   %b异常%b %b%s%b\n' \
+    "$MUTED" "$NC" "$GREEN$BOLD" "$passed" "$NC" \
+    "$MUTED" "$NC" "$YELLOW$BOLD" "$warnings" "$NC" \
+    "$MUTED" "$NC" "$RED$BOLD" "$failures" "$NC"
 }
 
 ui_empty() { printf '  %b◇%b %b%s%b\n' "$MUTED" "$NC" "$MUTED" "$1" "$NC"; }

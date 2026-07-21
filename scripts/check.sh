@@ -35,6 +35,8 @@ printf '[check] CLI 冒烟测试\n'
 [[ "$(bash bin/serverctl version)" == "Server Toolkit 0.1.0" ]]
 bash bin/serverctl --help | grep -q '一次只接受一个软件 ID'
 bash bin/serverctl --help | grep -q 'update ID'
+bash bin/serverctl --help | grep -q 'health'
+bash bin/serverctl --help | grep -q 'logs SERVICE'
 bash install.sh --help | grep -q 'Server Toolkit 安装器'
 bash scripts/install.sh --help | grep -q -- '--purge-data'
 

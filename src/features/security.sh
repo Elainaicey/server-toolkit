@@ -12,27 +12,27 @@ security_firewall_status() {
 security_audit() {
   ui_page "安全基线检查" "防火墙、SSH、特权账户、Fail2ban 与重启状态"
   local ssh_settings uid0_count
-  if command_exists ufw && ufw status 2>/dev/null | grep -q '^Status: active'; then
-    doctor_result pass "UFW 已启用"
+  if platform_firewall_active; then
+    ui_check pass "UFW 已启用"
   else
-    doctor_result warn "主机防火墙未启用"
+    ui_check warn "主机防火墙未启用"
   fi
   if command_exists sshd; then
     ssh_settings="$(sshd -T 2>/dev/null || true)"
-    if grep -q '^passwordauthentication no$' <<<"$ssh_settings"; then doctor_result pass "SSH 密码登录已禁用"; else doctor_result warn "SSH 仍允许密码登录"; fi
-    if grep -Eq '^permitrootlogin (no|prohibit-password)$' <<<"$ssh_settings"; then doctor_result pass "root 登录已限制"; else doctor_result warn "root 可直接通过 SSH 登录"; fi
+    if grep -q '^passwordauthentication no$' <<<"$ssh_settings"; then ui_check pass "SSH 密码登录已禁用"; else ui_check warn "SSH 仍允许密码登录"; fi
+    if grep -Eq '^permitrootlogin (no|prohibit-password)$' <<<"$ssh_settings"; then ui_check pass "root 登录已限制"; else ui_check warn "root 可直接通过 SSH 登录"; fi
     ui_kv "SSH 端口" "$(awk '/^port /{print $2;exit}' <<<"$ssh_settings")"
   else
-    doctor_result warn "无法检查 sshd 有效配置"
+    ui_check warn "无法检查 sshd 有效配置"
   fi
   uid0_count="$(awk -F: '$3==0{count++}END{print count+0}' /etc/passwd)"
-  if [[ "$uid0_count" -eq 1 ]]; then doctor_result pass "只有一个 UID 0 账户"; else doctor_result warn "检测到 $uid0_count 个 UID 0 账户"; fi
+  if [[ "$uid0_count" -eq 1 ]]; then ui_check pass "只有一个 UID 0 账户"; else ui_check warn "检测到 $uid0_count 个 UID 0 账户"; fi
   if command_exists fail2ban-client && fail2ban-client ping >/dev/null 2>&1; then
-    doctor_result pass "Fail2ban 正在运行"
+    ui_check pass "Fail2ban 正在运行"
   else
-    doctor_result warn "Fail2ban 未安装或未运行"
+    ui_check warn "Fail2ban 未安装或未运行"
   fi
-  if [[ -f /var/run/reboot-required ]]; then doctor_result warn "系统提示需要重启"; else doctor_result pass "没有待处理的重启提示"; fi
+  if [[ -f /var/run/reboot-required ]]; then ui_check warn "系统提示需要重启"; else ui_check pass "没有待处理的重启提示"; fi
 }
 
 security_exposed_ports() {

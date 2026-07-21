@@ -116,3 +116,9 @@ detect_ssh_port() {
   command_exists sshd && port="$(sshd -T 2>/dev/null | awk '/^port / {print $2; exit}')"
   printf '%s' "${port:-22}"
 }
+
+platform_firewall_active() {
+  command_exists ufw || return 1
+  ufw status 2>/dev/null | grep -q '^Status: active' ||
+    grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null
+}
