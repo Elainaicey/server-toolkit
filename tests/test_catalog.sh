@@ -18,6 +18,10 @@ package_installed_version() { :; }
 package_candidate_version() { printf '1.0.0'; }
 package_has_update() { return 1; }
 command_exists() { return 1; }
+software_oh_my_zsh_installed() { return 1; }
+software_oh_my_zsh_version() { :; }
+software_target_user() { printf 'tester'; }
+software_oh_my_zsh_path() { printf '/home/tester/.oh-my-zsh'; }
 # shellcheck source=../src/core/catalog.sh
 . "$ROOT_DIR/src/core/catalog.sh"
 
@@ -30,7 +34,11 @@ IFS='|' read -r id category _name _description packages handler <<<"$record"
 [[ "$id" == "podman" && "$category" == "容器" && "$packages" == "podman" && -z "$handler" ]] || die "podman 映射错误"
 
 catalog_total="$(catalog_rows | wc -l | tr -d '[:space:]')"
-(( catalog_total >= 100 )) || die "软件目录条目不足：$catalog_total"
+(( catalog_total >= 145 )) || die "软件目录条目不足：$catalog_total"
+
+record="$(catalog_record oh-my-zsh)"
+IFS='|' read -r id category _name _description packages handler <<<"$record"
+[[ "$id" == "oh-my-zsh" && "$category" == "终端美化" && -z "$packages" && "$handler" == "oh_my_zsh" ]] || die "Oh My Zsh 专用安装器映射错误"
 
 network_total="$(catalog_category_rows 网络 | wc -l | tr -d '[:space:]')"
 (( network_total >= 10 )) || die "网络分类条目不足：$network_total"
@@ -45,10 +53,15 @@ while IFS='|' read -r id category name description packages handler; do
   [[ -n "$category" && -n "$name" && -n "$description" ]] || die "目录字段为空：$id"
   case "$handler" in
     "") [[ -n "$packages" && "$packages" != *' '* ]] || die "普通软件必须精确映射一个包：$id" ;;
-    docker_official|caddy_official) [[ -z "$packages" ]] || die "专用安装器不应同时声明包：$id" ;;
+    docker_official|caddy_official|oh_my_zsh) [[ -z "$packages" ]] || die "专用安装器不应同时声明包：$id" ;;
     *) die "未知安装器：$id -> $handler" ;;
   esac
 done < <(catalog_rows)
+
+package_candidate_version() { [[ "$1" == "jq" ]] && printf '(none)' || printf '1.0.0'; }
+record="$(catalog_record jq)"
+[[ "$(catalog_state "$record")" == "unavailable" ]] || die "没有识别当前软件源不可用的普通软件"
+package_candidate_version() { printf '1.0.0'; }
 
 captured=""
 confirm() { return 0; }
@@ -57,11 +70,14 @@ audit() { :; }
 package_install() { captured="package:$1"; }
 software_install_docker() { captured="handler:docker"; }
 software_install_caddy() { captured="handler:caddy"; }
+software_install_oh_my_zsh() { captured="handler:oh-my-zsh"; }
 
 catalog_install jq >/dev/null
 [[ "$captured" == "package:jq" ]] || die "普通软件没有精确分发到单个包"
 catalog_install docker >/dev/null
 [[ "$captured" == "handler:docker" ]] || die "Docker 专用安装器分发错误"
+catalog_install oh-my-zsh >/dev/null
+[[ "$captured" == "handler:oh-my-zsh" ]] || die "Oh My Zsh 专用安装器分发错误"
 
 package_installed() { [[ "$1" == "jq" ]]; }
 package_installed_version() { printf '1.0.0'; }

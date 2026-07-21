@@ -16,6 +16,8 @@ NO_COLOR=1
 . "$ROOT_DIR/src/core/ui.sh"
 
 command_exists() { return 1; }
+software_oh_my_zsh_installed() { return 1; }
+software_oh_my_zsh_version() { :; }
 package_installed() { [[ "$1" == "jq" ]]; }
 package_installed_version() { [[ "$1" == "jq" ]] && printf '1.6-2.1'; }
 package_candidate_version() { [[ "$1" == "jq" ]] && printf '1.7.1-1'; }

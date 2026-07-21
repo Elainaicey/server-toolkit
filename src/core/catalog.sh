@@ -46,6 +46,7 @@ catalog_primary_package() {
       fi
       ;;
     caddy_official) printf 'caddy' ;;
+    oh_my_zsh) printf 'oh-my-zsh' ;;
     *) printf '%s' "$packages" ;;
   esac
 }
@@ -56,13 +57,20 @@ catalog_installed() {
   case "$handler" in
     docker_official) command_exists docker ;;
     caddy_official) command_exists caddy ;;
+    oh_my_zsh) software_oh_my_zsh_installed ;;
     "") package_installed "$packages" ;;
     *) return 1 ;;
   esac
 }
 
 catalog_installed_version() {
-  local record="$1" package version
+  local record="$1" _id _category _name _description _packages handler package version
+  IFS='|' read -r _id _category _name _description _packages handler <<<"$record"
+  if [[ "$handler" == "oh_my_zsh" ]]; then
+    version="$(software_oh_my_zsh_version)"
+    printf '%s' "${version:-—}"
+    return 0
+  fi
   package="$(catalog_primary_package "$record")"
   version="$(package_installed_version "$package")"
   if [[ -z "$version" ]]; then
@@ -75,8 +83,13 @@ catalog_installed_version() {
 }
 
 catalog_candidate_version() {
-  local package
-  package="$(catalog_primary_package "$1")"
+  local record="$1" _id _category _name _description _packages handler package
+  IFS='|' read -r _id _category _name _description _packages handler <<<"$record"
+  if [[ "$handler" == "oh_my_zsh" ]]; then
+    printf '官方 master 分支'
+    return 0
+  fi
+  package="$(catalog_primary_package "$record")"
   local candidate
   candidate="$(package_candidate_version "$package")"
   [[ "$candidate" == "(none)" ]] && candidate=""
@@ -84,26 +97,39 @@ catalog_candidate_version() {
 }
 
 catalog_has_update() {
-  local package
-  catalog_installed "$1" || return 1
-  package="$(catalog_primary_package "$1")"
+  local record="$1" _id _category _name _description _packages handler package
+  catalog_installed "$record" || return 1
+  IFS='|' read -r _id _category _name _description _packages handler <<<"$record"
+  [[ "$handler" != "oh_my_zsh" ]] || return 1
+  package="$(catalog_primary_package "$record")"
   package_has_update "$package"
 }
 
+catalog_available() {
+  local record="$1" _id _category _name _description packages handler candidate
+  IFS='|' read -r _id _category _name _description packages handler <<<"$record"
+  [[ -z "$handler" ]] || return 0
+  candidate="$(package_candidate_version "$packages")"
+  [[ -n "$candidate" && "$candidate" != "(none)" ]]
+}
+
 catalog_state() {
-  local record="$1"
-  if ! catalog_installed "$record"; then
-    printf 'absent'
-  elif catalog_has_update "$record"; then
-    printf 'update'
+  local record="$1" candidate="${2:-}"
+  if catalog_installed "$record"; then
+    if catalog_has_update "$record"; then printf 'update'; else printf 'current'; fi
+  elif (( $# > 1 )); then
+    if [[ -n "$candidate" && "$candidate" != "—" ]]; then printf 'absent'; else printf 'unavailable'; fi
+  elif ! catalog_available "$record"; then
+    printf 'unavailable'
   else
-    printf 'current'
+    printf 'absent'
   fi
 }
 
 catalog_state_badge() {
   case "$1" in
     absent) ui_badge "未安装" "$MUTED" ;;
+    unavailable) ui_badge "仓库不可用" "$RED" ;;
     update) ui_badge "可更新" "$YELLOW" ;;
     current) ui_badge "已是最新" "$GREEN" ;;
     *) ui_badge "未知" "$MUTED" ;;
@@ -132,9 +158,9 @@ catalog_statistics() {
 catalog_print_record() {
   local record="$1" id category name description packages handler state installed candidate
   IFS='|' read -r id category name description packages handler <<<"$record"
-  state="$(catalog_state "$record")"
   installed="$(catalog_installed_version "$record")"
   candidate="$(catalog_candidate_version "$record")"
+  state="$(catalog_state "$record" "$candidate")"
   printf '  %b›%b %b' "$MAGENTA" "$NC" "$CYAN$BOLD"
   ui_pad "$id" 20
   printf '%b%b' "$NC" "$BLUE$BOLD"
@@ -145,6 +171,8 @@ catalog_print_record() {
     printf '    %b版本%b  %b%s%b %b→%b %b%s%b\n' "$BLUE" "$NC" "$WHITE" "$installed" "$NC" "$MAGENTA" "$NC" "$YELLOW" "$candidate" "$NC"
   elif [[ "$state" == "current" ]]; then
     printf '    %b版本%b  %b%s%b\n' "$BLUE" "$NC" "$GREEN" "$installed" "$NC"
+  elif [[ "$state" == "unavailable" ]]; then
+    printf '    %b可用性%b  %b当前系统软件源未提供此软件包%b\n' "$BLUE" "$NC" "$YELLOW" "$NC"
   else
     printf '    %b仓库版本%b  %b%s%b\n' "$BLUE" "$NC" "$WHITE" "$candidate" "$NC"
   fi
@@ -185,21 +213,30 @@ catalog_install() {
   record="$(catalog_record "$id")" || { warn "软件目录中没有 '$id'。"; return 1; }
   IFS='|' read -r _id category name description packages handler <<<"$record"
   catalog_installed "$record" && { info "$name 已经安装。"; return 0; }
+  catalog_available "$record" || { warn "当前系统软件源未提供 $name，请先检查软件源或系统版本。"; return 1; }
   ui_page "安装软件 / $name" "$id · $category"
   ui_panel_begin "变更摘要"
   ui_panel_kv "软件" "$name" "$CYAN"
   ui_panel_kv "说明" "$description"
   source_label="系统软件仓库"
   [[ -z "$handler" ]] || source_label="官方软件仓库"
+  [[ "$handler" != "oh_my_zsh" ]] || source_label="Oh My Zsh 官方 Git 仓库"
   ui_panel_kv "来源" "$source_label"
   ui_panel_kv "目标版本" "$(catalog_candidate_version "$record")" "$GREEN"
-  [[ -z "$packages" ]] || ui_panel_kv "系统包" "$packages"
+  if [[ "$handler" == "oh_my_zsh" ]]; then
+    ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+    ui_panel_kv "目标目录" "$(software_oh_my_zsh_path)"
+    ui_panel_kv "必要依赖" "zsh + git"
+  elif [[ -n "$packages" ]]; then
+    ui_panel_kv "系统包" "$packages"
+  fi
   ui_panel_end
   confirm "确认安装 $name？" || { warn "已取消。"; return 0; }
   require_root
   case "$handler" in
     docker_official) software_install_docker ;;
     caddy_official) software_install_caddy ;;
+    oh_my_zsh) software_install_oh_my_zsh ;;
     "") package_install "$packages" ;;
     *) die "未知安装器：$handler" ;;
   esac
@@ -214,6 +251,22 @@ catalog_update() {
   catalog_installed "$record" || { warn "$name 尚未安装，请先执行安装。"; return 1; }
   installed="$(catalog_installed_version "$record")"
   candidate="$(catalog_candidate_version "$record")"
+  if [[ "$handler" == "oh_my_zsh" ]]; then
+    ui_page "更新软件 / $name" "$id · $category"
+    ui_panel_begin "官方 Git 更新"
+    ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+    ui_panel_kv "当前提交" "$installed" "$WHITE"
+    ui_panel_kv "跟踪分支" "$candidate" "$YELLOW"
+    ui_panel_kv "目标目录" "$(software_oh_my_zsh_path)"
+    ui_panel_end
+    ui_note "更新将调用 Oh My Zsh 官方 tools/upgrade.sh，并拒绝来源不明的仓库。"
+    confirm "检查并更新 $name？" || return 0
+    require_root
+    software_update_oh_my_zsh
+    audit "action=software-update id=$id from=$installed"
+    if [[ "$DRY_RUN" -eq 1 ]]; then info "$name 更新预览完成。"; else ui_success "$name 已检查并更新。"; fi
+    return 0
+  fi
   ui_page "检查更新 / $name" "$id · $category"
   ui_panel_begin "本地索引"
   ui_panel_kv "当前版本" "$installed" "$WHITE"
@@ -239,6 +292,7 @@ catalog_update() {
   case "$handler" in
     docker_official) software_update_docker ;;
     caddy_official) software_update_caddy ;;
+    oh_my_zsh) software_update_oh_my_zsh ;;
     "") package_upgrade "$packages" ;;
     *) die "未知安装器：$handler" ;;
   esac
@@ -255,14 +309,24 @@ catalog_remove() {
   ui_panel_begin "变更摘要"
   ui_panel_kv "软件" "$name" "$CYAN"
   ui_panel_kv "当前版本" "$(catalog_installed_version "$record")"
-  ui_panel_kv "系统包" "${packages:-由官方安装器管理}"
+  if [[ "$handler" == "oh_my_zsh" ]]; then
+    ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+    ui_panel_kv "目标目录" "$(software_oh_my_zsh_path)"
+  else
+    ui_panel_kv "系统包" "${packages:-由官方安装器管理}"
+  fi
   ui_panel_end
-  ui_danger "只移除软件包，不删除它的数据目录和配置文件。"
+  if [[ "$handler" == "oh_my_zsh" ]]; then
+    ui_danger "将移除官方框架目录和 Server Toolkit 托管的 .zshrc 配置块；保留其他用户配置、Zsh、Git 与默认 Shell。"
+  else
+    ui_danger "只移除软件包，不删除它的数据目录和配置文件。"
+  fi
   confirm "确认移除 $name？" || { warn "已取消。"; return 0; }
   require_root
   case "$handler" in
     docker_official) software_remove_docker ;;
     caddy_official) software_remove_caddy ;;
+    oh_my_zsh) software_remove_oh_my_zsh ;;
     "") package_remove "$packages" ;;
     *) die "未知安装器：$handler" ;;
   esac
@@ -275,11 +339,12 @@ catalog_item_menu() {
   record="$(catalog_record "$id")" || return 1
   IFS='|' read -r _id category name description packages handler <<<"$record"
   while true; do
-    state="$(catalog_state "$record")"
     installed="$(catalog_installed_version "$record")"
     candidate="$(catalog_candidate_version "$record")"
+    state="$(catalog_state "$record" "$candidate")"
     source_label="系统软件仓库"
     if [[ -n "$handler" ]]; then source_label="官方软件仓库"; fi
+    if [[ "$handler" == "oh_my_zsh" ]]; then source_label="Oh My Zsh 官方 Git 仓库"; fi
     if [[ "$handler" == "docker_official" ]] && package_installed docker.io; then source_label="系统软件仓库（现有安装）"; fi
     ui_page "软件管理 / $name" "$id · $category"
     ui_panel_begin "软件信息"
@@ -288,10 +353,20 @@ catalog_item_menu() {
     ui_panel_kv "仓库候选版本" "$candidate" "$CYAN"
     ui_panel_kv "说明" "$description"
     ui_panel_kv "来源" "$source_label"
-    ui_panel_kv "系统包" "${packages:-由官方安装器管理}"
+    if [[ "$handler" == "oh_my_zsh" ]]; then
+      ui_panel_kv "安装用户" "$(software_target_user)" "$CYAN"
+      ui_panel_kv "目标目录" "$(software_oh_my_zsh_path)"
+      ui_panel_kv "必要依赖" "zsh + git"
+    else
+      ui_panel_kv "系统包" "${packages:-由官方安装器管理}"
+    fi
     ui_panel_end
     ui_section "可用操作" "primary"
-    if [[ "$state" == "absent" ]]; then
+    if [[ "$state" == "unavailable" ]]; then
+      ui_action 1 "安装" "disabled" "当前系统软件源未提供"
+      ui_action 2 "更新" "disabled" "需要先安装"
+      ui_action 3 "移除" "disabled" "当前未安装"
+    elif [[ "$state" == "absent" ]]; then
       ui_action 1 "安装" "success" "安装候选版本 $candidate"
       ui_action 2 "更新" "disabled" "需要先安装"
       ui_action 3 "移除" "disabled" "当前未安装"
@@ -308,15 +383,21 @@ catalog_item_menu() {
     choice="$(read_input "请选择" "0")"
     case "$choice" in
       1)
-        if [[ "$state" == "absent" ]]; then catalog_install "$id" || true; else warn "$name 已经安装。"; fi
+        if [[ "$state" == "absent" ]]; then
+          catalog_install "$id" || true
+        elif [[ "$state" == "unavailable" ]]; then
+          warn "当前系统软件源未提供 $name。"
+        else
+          warn "$name 已经安装。"
+        fi
         pause
         ;;
       2)
-        if [[ "$state" != "absent" ]]; then catalog_update "$id" || true; else warn "请先安装 $name。"; fi
+        if [[ "$state" != "absent" && "$state" != "unavailable" ]]; then catalog_update "$id" || true; else warn "请先安装 $name。"; fi
         pause
         ;;
       3)
-        if [[ "$state" != "absent" ]]; then catalog_remove "$id" || true; else warn "$name 尚未安装。"; fi
+        if [[ "$state" != "absent" && "$state" != "unavailable" ]]; then catalog_remove "$id" || true; else warn "$name 尚未安装。"; fi
         pause
         ;;
       0) return 0 ;;
