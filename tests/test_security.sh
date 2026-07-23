@@ -82,7 +82,7 @@ ssh_settings=$'port 22\nlistenaddress 0.0.0.0:22\nlistenaddress [::]:22\npasswor
 }
 
 # 由 security_ssh_effective_matches 间接调用。
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 sshd() {
   cat <<'EOF'
 port 2222
@@ -100,7 +100,7 @@ if security_ssh_effective_matches /tmp/sshd_config 22 1 1; then
   printf 'FAIL: SSH 最终生效值校验接受了错误配置\n' >&2
   exit 1
 fi
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 sshd() {
   cat <<'EOF'
 port 2222

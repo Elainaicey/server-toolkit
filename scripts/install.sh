@@ -146,7 +146,9 @@ done
 
 [[ "$EUID" -eq 0 ]] || die "请使用 root 运行：sudo bash install.sh"
 safe_install_path "$INSTALL_DIR" || die "不安全的安装目录：$INSTALL_DIR"
-safe_install_path "$BIN_PATH" && [[ ! -d "$BIN_PATH" ]] || die "命令入口必须是安全的绝对文件路径：$BIN_PATH"
+if ! safe_install_path "$BIN_PATH" || [[ -d "$BIN_PATH" ]]; then
+  die "命令入口必须是安全的绝对文件路径：$BIN_PATH"
+fi
 [[ ! -L "$INSTALL_DIR" ]] || die "安装目录不能是符号链接：$INSTALL_DIR"
 
 if [[ "$UNINSTALL" -eq 1 ]]; then

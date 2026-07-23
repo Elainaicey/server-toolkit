@@ -336,7 +336,7 @@ software_catalog_menu() {
       A|a|all) query=""; catalog_categories_view ;;
       I|i|installed) catalog_installed_view ;;
       U|u) catalog_updates_view ;;
-      O|o) catalog_official_updates_view; pause ;;
+      O|o) catalog_official_updates_view 1; pause ;;
       S|s|source|sources) catalog_sources_view ;;
       R|r) catalog_refresh_index || true; pause ;;
       "") ;;
