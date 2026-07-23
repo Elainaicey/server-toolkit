@@ -96,9 +96,12 @@ package_upgrade() {
 
 package_upgradable_count() { apt list --upgradable 2>/dev/null | sed '1d' | grep -c . || true; }
 
+unit_exists() {
+  command_exists systemctl && systemctl list-unit-files --no-legend 2>/dev/null |
+    awk -v unit="$1" '$1 == unit { found=1 } END { exit !found }'
+}
 service_exists() {
-  command_exists systemctl && systemctl list-unit-files --type=service --no-legend 2>/dev/null |
-    awk -v service="$1" '$1 == service { found=1 } END { exit !found }'
+  [[ "$1" == *.service ]] && unit_exists "$1"
 }
 service_enable_now() {
   if service_exists "$1"; then

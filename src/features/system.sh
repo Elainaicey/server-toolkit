@@ -206,14 +206,6 @@ system_disk_usage() {
   fi
 }
 
-system_processes() {
-  ui_page "进程与资源" "按 CPU 和内存使用率查看高占用进程"
-  ui_section "内存占用最高"
-  ps -eo pid,user,%cpu,%mem,rss,stat,comm --sort=-%mem 2>/dev/null | sed -n '1,16p'
-  ui_section "CPU 占用最高"
-  ps -eo pid,user,%cpu,%mem,etime,stat,comm --sort=-%cpu 2>/dev/null | sed -n '1,16p'
-}
-
 system_pressure() {
   platform_detect
   ui_page "资源压力分析" "负载、内存、存储空间、inode 与 OOM 事件"
@@ -239,16 +231,6 @@ system_pressure() {
   if [[ "$root_percent" =~ ^[0-9]+$ ]] && (( root_percent >= 90 )); then ui_check fail "根分区空间紧张"; else ui_check pass "根分区空间正常"; fi
   if [[ "$inode_percent" =~ ^[0-9]+$ ]] && (( inode_percent >= 90 )); then ui_check warn "inode 使用率较高"; else ui_check pass "inode 余量正常"; fi
   if (( oom_count > 0 )); then ui_check warn "本次启动检测到 $oom_count 条 OOM 相关日志"; else ui_check pass "本次启动未检测到 OOM"; fi
-}
-
-system_user_sessions() {
-  ui_page "用户与登录会话" "当前连接、最近登录与可交互账户"
-  ui_section "当前会话"
-  who 2>/dev/null || true
-  ui_section "最近登录"
-  last -n 20 2>/dev/null || ui_empty "没有可显示的登录记录"
-  ui_section "可登录账户"
-  awk -F: '$7 !~ /(nologin|false)$/ {printf "  %-18s uid=%s shell=%s\n",$1,$3,$7}' /etc/passwd
 }
 
 system_schedules() {
@@ -291,8 +273,8 @@ system_menu() {
     ui_item 2 "系统健康巡检" "资源、服务、更新、网络与安全汇总"
     ui_item 3 "环境检查" "运行依赖与连通性"
     ui_item 4 "资源压力分析" "负载、内存、空间、inode 与 OOM"
-    ui_item 5 "进程与资源" "CPU、内存占用排行"
-    ui_item 6 "用户与会话" "在线用户和最近登录"
+    ui_item 5 "进程与资源" "高占用排行、详情、优先级与终止信号"
+    ui_item 6 "用户与账户" "账户、会话、SSH 公钥与 sudo 权限"
     ui_item 7 "计划任务" "systemd Timer 与 Cron"
     ui_item 8 "重启状态" "内核、重启提示与启动历史"
     ui_item 9 "软件包与更新" "版本清单、保留包、dpkg 与缓存"
@@ -300,7 +282,7 @@ system_menu() {
     ui_section "系统设置"
     ui_item 11 "修改主机名"
     ui_item 12 "修改时区"
-    ui_item 13 "创建 Swap"
+    ui_item 13 "Swap 管理" "状态、创建、即时启停与托管文件删除"
     ui_item 14 "时间同步"
     ui_item 15 "安全清理" "APT 缓存和旧 Journal"
     ui_section "项目"
@@ -315,15 +297,15 @@ system_menu() {
       2) system_health_report ;;
       3) system_doctor ;;
       4) system_pressure ;;
-      5) system_processes ;;
-      6) system_user_sessions ;;
+      5) system_processes; continue ;;
+      6) system_accounts_menu; continue ;;
       7) system_schedules ;;
       8) system_reboot_status ;;
       9) system_package_health ;;
       10) system_disk_usage ;;
       11) system_set_hostname || true ;;
       12) system_set_timezone || true ;;
-      13) system_create_swap || true ;;
+      13) system_swap_manage; continue ;;
       14) system_time_sync || true ;;
       15) system_cleanup || true ;;
       16) toolkit_about ;;
