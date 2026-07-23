@@ -67,13 +67,13 @@ sudo serverctl
 
 | 中心 | 能力 |
 | --- | --- |
-| **系统仪表盘** | 主机环境、负载、内存/Swap/磁盘进度、systemd 状态、TCP 监听、软件更新与 Docker 状态 |
-| **系统管理** | 综合健康巡检、环境检查、资源压力、进程排行、用户会话、计划任务、重启状态、软件包更新清单、存储诊断、主机名、时区、Swap、NTP 与安全清理 |
-| **网络与端口** | 接口地址、路由与策略规则、DNS 解析器与记录诊断、IPv4/IPv6 连通性、目标诊断、网卡流量、连接会话、监听端口、端口进程、BBR 与地址优先级 |
-| **安全中心** | 安全基线、公网监听、UFW 状态与规则、SSH 安全向导、登录事件、Fail2ban 状态，以及带主机名匹配和到期预警的 TLS 证书检查 |
-| **服务与日志** | failed/active 服务、关键词查找、服务详情与依赖、Journal、生命周期、开机启动、Timer、启动错误、内核警告与项目操作审计 |
+| **系统仪表盘** | 主机环境、负载、内存/Swap/磁盘进度、systemd、TCP 监听、软件更新、Docker、UFW、Fail2ban 与时间同步状态 |
+| **系统管理** | 综合健康巡检、环境检查、资源压力、进程排行与 PID 下钻、文件/套接字、nice 与终止信号、本地账户、登录会话、SSH 公钥、sudo 权限、计划任务、重启状态、软件包更新清单、存储诊断、主机名、时区、托管 Swap 生命周期、NTP 状态与启停、同步服务管理及安全清理 |
+| **网络与端口** | 接口地址、路由与策略规则、DNS 解析器与记录诊断、IPv4/IPv6 连通性、目标诊断、网卡流量、连接会话、监听端口、端口进程、可恢复的 BBR 管理与地址优先级 |
+| **安全中心** | 安全基线、公网监听、UFW 启停与重载、TCP/UDP/端口范围/来源规则、SSH 向导、登录事件、Fail2ban 生命周期、Jail、日志、解除误封，以及 TLS 证书检查 |
+| **服务与日志** | failed/active 服务直接处置、关键词查找、服务详情与依赖、经验证的启停/重启/开机策略、Timer 调度和任务触发、Journal 验证与按时间/容量维护、启动错误、内核警告及操作审计 |
 | **软件管理** | 按分类、安装状态、ID、名称和用途浏览；识别当前软件源可用性；查看当前版本、仓库候选版本与更新状态；单项安装、更新或移除 160 个常用软件条目 |
-| **应用与容器** | Web、数据库、缓存与容器服务概览；Docker 健康检查、容器详情、日志、资源、生命周期、镜像、Compose、存储卷、网络和安全清理 |
+| **应用与容器** | Docker、Web、数据库、缓存和 3x-ui 服务的状态、日志、依赖、生命周期与开机策略；Docker 容器详情、资源、镜像、Compose 项目日志/镜像/启停/更新/移除、存储卷、网络及安全清理 |
 | **备份与恢复** | 自动配置快照、手动 `/etc` 文件快照、完整性校验、当前配置差异、安全删除与单文件恢复 |
 
 普通软件条目精确映射一个 APT 包。Docker、Caddy 与 Oh My Zsh 使用各自的官方来源流程，参考 [Docker Engine 安装文档](https://docs.docker.com/engine/install/)、[Caddy 安装文档](https://caddyserver.com/docs/install)与 [Oh My Zsh 项目](https://github.com/ohmyzsh/ohmyzsh)。
@@ -88,14 +88,23 @@ serverctl health                 # 综合系统健康巡检
 serverctl doctor                 # 环境检查
 serverctl updates                # 系统软件包更新清单
 serverctl storage                # 存储与占用诊断
+serverctl swap                   # Swap 状态与生命周期管理
+serverctl users                  # 用户与账户中心
+serverctl user deploy            # 直接管理一个本地账户
+serverctl process 1234           # 查看并管理指定 PID
 serverctl ports                  # 监听端口
 serverctl dns example.com        # DNS 解析器与记录诊断
 serverctl system                 # 系统管理中心
 serverctl network                # 网络与端口中心
 serverctl security               # 安全中心
 serverctl services               # 服务与日志中心
+serverctl service nginx.service  # 直接管理一个 systemd 服务
+serverctl service nginx.service restart
+serverctl timer apt-daily.timer  # 管理一个 systemd Timer
+serverctl journal                # Journal 验证与空间维护
 serverctl logs nginx.service     # 直接查看服务最近日志
 serverctl apps                   # 应用与容器中心
+serverctl compose my-project     # 管理现有 Compose 项目
 serverctl backups                # 备份与恢复中心
 serverctl about                  # 版本和安装路径
 serverctl version                # 版本号
@@ -140,6 +149,8 @@ sudo serverctl --dry-run install docker
 | 确认 | 修改前显示目标和影响范围，默认答案为拒绝 |
 | 配置备份 | 修改已有文件前写入 `/var/backups/server-toolkit/<snapshot>/` 并生成 manifest |
 | SSH | 使用独立 drop-in，执行 `sshd -t`；验证或服务重启失败时恢复旧配置 |
+| 账户 | 新账户默认禁用密码且不自动获得 sudo；root、UID 0、当前操作账户和最后一个 sudo 成员受到保护 |
+| 进程 | PID、nice 和信号严格校验；PID 1、工具自身与父进程不可控制；SIGKILL 单独标记为危险操作 |
 | 防火墙 | 启用 UFW 前保留当前 SSH 端口；其他端口必须显式添加 |
 | 审计 | root 修改记录到 `/var/log/server-toolkit/actions.log` |
 | 安装升级 | 在同一父目录暂存并原子替换；失败时恢复上一安装目录 |
@@ -184,6 +195,8 @@ server-toolkit/
 │       │   ├── oh-my-zsh.sh     # Oh My Zsh 安装、更新与安全移除
 │       │   └── prompts.sh       # 现代提示符安装、切换与生命周期
 │       ├── system/
+│       │   ├── accounts.sh      # 账户、登录、SSH 公钥与 sudo 权限
+│       │   ├── processes.sh     # 进程下钻、资源与安全控制
 │       │   └── settings.sh      # 主机名、时区、Swap 与维护设置
 │       └── *.sh                 # 系统、网络、安全、服务等功能中心
 ├── tests/                       # 离线单元测试与安全边界测试

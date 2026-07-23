@@ -16,6 +16,8 @@ bin/serverctl
 ├── src/features/apps/docker.sh
 ├── src/features/software/oh-my-zsh.sh
 ├── src/features/software/prompts.sh
+├── src/features/system/accounts.sh
+├── src/features/system/processes.sh
 ├── src/features/system/settings.sh
 └── config/software.tsv
 ```
@@ -44,6 +46,14 @@ bin/serverctl
 7. 验证结果并写入操作记录。
 
 纯查询动作不要求 root；真正修改系统前才调用 `require_root`。
+
+展示可运行组件状态时，应在同一领域中提供对应的控制入口。systemd 服务统一复用服务生命周期操作，至少覆盖状态、日志、启动、停止、重启和开机策略，并在修改后验证目标状态。防火墙、Fail2ban、时间同步等具有领域语义的组件可以提供专用管理页，但不能只显示状态后让用户自行寻找命令。
+
+删除由项目创建的系统资源时必须先证明所有权。新建 Swap、下载目录或其他持久资源应在项目状态目录写入最小所有权记录；缺少记录时只展示状态和人工处理指引，不得根据常见路径猜测删除。Timer 与 Compose 等外部资源可以控制生命周期，但不声明所有权，危险操作必须明确其保留和删除边界。
+
+账户管理必须区分身份、认证材料与提权权限。创建账户不应自动授予 sudo，也不应自动生成或接收密码；公钥写入前验证 OpenSSH 公钥格式并备份已有文件。root、UID 0、当前操作账户和最后一个 sudo 组成员不得通过交互界面移除关键访问能力。项目不提供带主目录的数据删除动作。
+
+进程控制必须从只读详情进入，不允许从排行榜直接执行终止。PID、nice 和信号必须使用白名单校验；PID 1、工具进程与其父进程受保护。优先使用 SIGTERM，SIGKILL 必须明确说明无法清理资源的影响。发送信号不会承诺进程永久停止，因为 systemd 或容器运行时可能重新拉起。
 
 跨领域健康巡检只聚合只读状态并给出明确的后续入口，不自动修复、不隐藏原始异常，也不形成另一套平行导航。
 

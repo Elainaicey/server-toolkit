@@ -33,6 +33,8 @@ fi
 . "$ROOT_DIR/src/features/software/prompts.sh"
 . "$ROOT_DIR/src/features/dashboard.sh"
 . "$ROOT_DIR/src/features/system/settings.sh"
+. "$ROOT_DIR/src/features/system/accounts.sh"
+. "$ROOT_DIR/src/features/system/processes.sh"
 . "$ROOT_DIR/src/features/system.sh"
 . "$ROOT_DIR/src/features/network.sh"
 . "$ROOT_DIR/src/features/security.sh"
@@ -52,6 +54,10 @@ usage() {
   serverctl doctor                运行环境检查
   serverctl updates               查看系统软件包更新清单
   serverctl storage               运行存储诊断
+  serverctl swap                  打开 Swap 生命周期管理
+  serverctl users                 打开用户与账户中心
+  serverctl user USER             管理一个本地账户
+  serverctl process PID           查看并管理一个进程
   serverctl list [关键词]         查询软件目录
   serverctl install ID            安装一个软件
   serverctl update ID             更新一个已安装软件
@@ -62,8 +68,14 @@ usage() {
   serverctl network               打开网络与端口中心
   serverctl security              打开安全中心
   serverctl services              打开服务与日志中心
+  serverctl service SERVICE       打开一个 systemd 服务的管理页
+  serverctl service SERVICE ACTION
+                                  执行 start/stop/restart/enable/disable
+  serverctl timer TIMER           管理一个 systemd Timer
+  serverctl journal               打开 Journal 管理
   serverctl logs SERVICE          查看一个 systemd 服务的最近日志
   serverctl apps                  打开应用与容器中心
+  serverctl compose PROJECT       管理一个现有 Docker Compose 项目
   serverctl backups               打开备份与恢复中心
   serverctl about                 显示项目与安装信息
   serverctl self-update           更新 Server Toolkit
@@ -161,6 +173,26 @@ main() {
       platform_detect
       system_disk_usage
       ;;
+    swap)
+      ((${#arguments[@]} == 0)) || die "swap 不接受参数"
+      system_swap_manage
+      ;;
+    users)
+      ((${#arguments[@]} == 0)) || die "users 不接受参数"
+      system_accounts_menu
+      ;;
+    user)
+      ((${#arguments[@]} == 1)) || die "user 需要且只接受一个用户名"
+      valid_username "${arguments[0]}" || die "用户名格式无效"
+      account_exists "${arguments[0]}" || die "账户不存在：${arguments[0]}"
+      system_account_select "${arguments[0]}"
+      ;;
+    process)
+      ((${#arguments[@]} == 1)) || die "process 需要且只接受一个 PID"
+      valid_pid "${arguments[0]}" || die "PID 格式无效"
+      process_exists "${arguments[0]}" || die "进程不存在：${arguments[0]}"
+      system_process_select "${arguments[0]}"
+      ;;
     list)
       ((${#arguments[@]} <= 1)) || die "list 最多接受一个关键词"
       platform_detect
@@ -211,6 +243,26 @@ main() {
       platform_detect
       services_menu
       ;;
+    service)
+      ((${#arguments[@]} >= 1 && ${#arguments[@]} <= 2)) || die "service 需要服务名，可选一个生命周期动作"
+      valid_service_name "${arguments[0]}" || die "服务名格式无效"
+      service_exists "${arguments[0]}" || die "没有找到服务：${arguments[0]}"
+      if ((${#arguments[@]} == 1)); then
+        services_select "${arguments[0]}"
+      else
+        services_apply_action "${arguments[0]}" "${arguments[1]}"
+      fi
+      ;;
+    timer)
+      ((${#arguments[@]} == 1)) || die "timer 需要且只接受一个 Timer 名称"
+      valid_service_name "${arguments[0]}" && [[ "${arguments[0]}" == *.timer ]] || die "Timer 名称格式无效"
+      unit_exists "${arguments[0]}" || die "没有找到 Timer：${arguments[0]}"
+      services_timer_select "${arguments[0]}"
+      ;;
+    journal)
+      ((${#arguments[@]} == 0)) || die "journal 不接受参数"
+      services_journal_info
+      ;;
     logs)
       ((${#arguments[@]} == 1)) || die "logs 需要且只接受一个服务名"
       valid_service_name "${arguments[0]}" || die "服务名格式无效"
@@ -221,6 +273,11 @@ main() {
       ((${#arguments[@]} == 0)) || die "apps 不接受参数"
       platform_detect
       apps_menu
+      ;;
+    compose)
+      ((${#arguments[@]} == 1)) || die "compose 需要且只接受一个项目名称"
+      platform_detect
+      docker_compose_manage "${arguments[0]}"
       ;;
     backups)
       ((${#arguments[@]} == 0)) || die "backups 不接受参数"

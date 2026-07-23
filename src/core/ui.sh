@@ -133,6 +133,47 @@ ui_action() {
   printf '\n'
 }
 
+ui_action_pair() {
+  local number1="$1" title1="$2" style1="$3" number2="$4" title2="$5" style2="$6"
+  local color1 color2 column title_width
+  if (( UI_WIDTH < 76 )); then
+    ui_action "$number1" "$title1" "$style1"
+    ui_action "$number2" "$title2" "$style2"
+    return 0
+  fi
+  color1="$(ui_color_for_state "$style1")"
+  color2="$(ui_color_for_state "$style2")"
+  column=$((UI_WIDTH / 2 - 2))
+  title_width=$((column - 7))
+  printf '  %b[%s]%b  %b' "$color1$BOLD" "$number1" "$NC" "$color1$BOLD"
+  ui_pad "$title1" "$title_width"
+  printf '%b  %b[%s]%b  %b' "$NC" "$color2$BOLD" "$number2" "$NC" "$color2$BOLD"
+  ui_pad "$title2" "$title_width"
+  printf '%b\n' "$NC"
+}
+
+ui_state_item() {
+  local number="$1" title="$2" value="$3" state="${4:-neutral}" hint="${5:-}"
+  local color number_color="$CYAN" title_color="$BLUE" detail_width=0
+  color="$(ui_color_for_state "$state")"
+  if [[ "$number" == "0" ]]; then
+    number_color="$MUTED"
+    title_color="$MUTED"
+  fi
+  printf '  %b[%2s]%b  %b' "$number_color$BOLD" "$number" "$NC" "$title_color$BOLD"
+  ui_pad "$title" 22
+  printf '%b%b● %s%b' "$NC" "$color$BOLD" "$value" "$NC"
+  if [[ -n "$hint" ]]; then
+    detail_width="$(ui_display_width "$value $hint")"
+    if (( detail_width > UI_WIDTH - 36 )); then
+      printf '\n         %b└─ %s%b' "$MUTED" "$hint" "$NC"
+    else
+      printf '  %b%s%b' "$MUTED" "$hint" "$NC"
+    fi
+  fi
+  printf '\n'
+}
+
 ui_kv() {
   local label="$1" value="$2" value_color="${3:-$WHITE}"
   printf '  %b' "$BLUE"
@@ -182,7 +223,13 @@ ui_section() {
 }
 
 ui_panel_begin() {
-  printf '\n%b╭─%b %b%s%b\n' "$MAGENTA" "$NC" "$CYAN$BOLD" "$1" "$NC"
+  local title="$1" title_width fill
+  title_width="$(ui_display_width "$title")"
+  fill=$((UI_WIDTH - title_width - 4))
+  (( fill < 1 )) && fill=1
+  printf '\n%b╭─%b %b%s%b %b' "$MAGENTA" "$NC" "$CYAN$BOLD" "$title" "$NC" "$MAGENTA"
+  ui_repeat '─' "$fill"
+  printf '%b\n' "$NC"
 }
 
 ui_panel_kv() {
@@ -192,7 +239,11 @@ ui_panel_kv() {
   printf '%b%b%s%b\n' "$NC" "$value_color" "$value" "$NC"
 }
 
-ui_panel_end() { printf '%b╰%b\n' "$MAGENTA" "$NC"; }
+ui_panel_end() {
+  printf '%b╰' "$MAGENTA"
+  ui_repeat '─' "$((UI_WIDTH - 1))"
+  printf '%b\n' "$NC"
+}
 
 ui_stats() {
   local label1="$1" value1="$2" label2="$3" value2="$4" label3="$5" value3="$6"

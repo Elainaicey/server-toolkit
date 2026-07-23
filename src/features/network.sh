@@ -130,7 +130,9 @@ network_dns_diagnose() {
 }
 
 network_enable_bbr() {
-  local available; available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+  local available current
+  available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+  current="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || printf '未知')"
   ui_page "启用 BBR" "检查内核能力并写入独立 sysctl 配置"
   [[ "$available" == *bbr* ]] || warn "将尝试加载 BBR 内核模块。"
   confirm "启用 BBR 拥塞控制？" || return 0; require_root
@@ -142,13 +144,85 @@ network_enable_bbr() {
   fi
   [[ "$DRY_RUN" -eq 1 || "$available" == *bbr* ]] || { warn "当前内核无法启用 BBR。"; return 1; }
   local config=/etc/sysctl.d/98-server-toolkit-bbr.conf; backup_file "$config"
-  if [[ "$DRY_RUN" -eq 1 ]]; then info "将写入 $config。"; else cat >"$config" <<'EOF'
-# Managed by Server Toolkit
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-EOF
+  if [[ "$DRY_RUN" -eq 1 ]]; then info "将写入 $config。"; else
+    {
+      printf '# Managed by Server Toolkit\n'
+      printf '# Previous: %s\n' "$current"
+      printf 'net.core.default_qdisc = fq\n'
+      printf 'net.ipv4.tcp_congestion_control = bbr\n'
+    } >"$config"
   fi
-  run sysctl --system; audit "action=enable-bbr"
+  run sysctl --system
+  if [[ "$DRY_RUN" -eq 0 && "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true)" != "bbr" ]]; then
+    warn "应用配置后拥塞控制算法仍不是 BBR。"
+    return 1
+  fi
+  audit "action=enable-bbr previous=$current"
+  ui_success "BBR 已启用"
+}
+
+network_restore_bbr() {
+  local config=/etc/sysctl.d/98-server-toolkit-bbr.conf available previous fallback=""
+  [[ -f "$config" ]] || { warn "没有检测到 Server Toolkit 管理的 BBR 配置。"; return 1; }
+  grep -Fq '# Managed by Server Toolkit' "$config" || {
+    warn "$config 不属于 Server Toolkit，拒绝删除。"
+    return 1
+  }
+  available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || true)"
+  previous="$(sed -n 's/^# Previous: //p' "$config" | head -n 1)"
+  if [[ -n "$previous" && " $available " == *" $previous "* ]]; then
+    fallback="$previous"
+  elif [[ " $available " == *" cubic "* ]]; then
+    fallback=cubic
+  elif [[ " $available " == *" reno "* ]]; then
+    fallback=reno
+  else
+    fallback="$(awk '{print $1}' <<<"$available")"
+  fi
+  [[ -n "$fallback" ]] || { warn "无法确定可用的拥塞控制算法。"; return 1; }
+  ui_danger "将删除工具管理的 BBR 持久化配置，并把当前算法切换为 $fallback。"
+  confirm "恢复系统拥塞控制设置？" || return 0
+  require_root
+  backup_file "$config"
+  run rm -f -- "$config"
+  run sysctl -w "net.ipv4.tcp_congestion_control=$fallback"
+  if [[ "$DRY_RUN" -eq 0 && "$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || true)" != "$fallback" ]]; then
+    warn "当前拥塞控制算法未切换到 $fallback。"
+    return 1
+  fi
+  audit "action=restore-congestion-control value=$fallback"
+  ui_success "已移除托管 BBR 配置，当前算法为 $fallback"
+}
+
+network_bbr_manage() {
+  local current available managed="否" action
+  current="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || printf '未知')"
+  available="$(sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null || printf '未知')"
+  if [[ -f /etc/sysctl.d/98-server-toolkit-bbr.conf ]] &&
+    grep -Fq '# Managed by Server Toolkit' /etc/sysctl.d/98-server-toolkit-bbr.conf; then
+    managed="是"
+  fi
+  ui_page "BBR 拥塞控制" "查看内核能力、启用 BBR 或恢复托管配置"
+  ui_panel_begin "当前状态"
+  if [[ "$current" == "bbr" ]]; then ui_panel_kv "当前算法" "● bbr" "$GREEN"; else ui_panel_kv "当前算法" "● $current" "$YELLOW"; fi
+  ui_panel_kv "可用算法" "$available"
+  ui_panel_kv "工具托管" "$managed"
+  ui_panel_end
+  ui_section "操作" "accent"
+  ui_action 1 "启用 BBR" "success"
+  if [[ "$managed" == "是" ]]; then
+    ui_action 2 "恢复系统设置" "warning" "移除工具管理的持久化配置"
+  else
+    ui_action 2 "恢复系统设置" "muted" "没有工具管理的配置"
+  fi
+  ui_action 0 "返回" "muted"
+  action="$(read_input "请选择" "0")"
+  case "$action" in
+    1) network_enable_bbr ;;
+    2) network_restore_bbr ;;
+    0) return 0 ;;
+    *) warn "未知选项"; return 1 ;;
+  esac
 }
 
 network_set_address_preference() {
@@ -194,7 +268,7 @@ network_menu() {
     ui_section "端口与协议" "accent"
     ui_item 8 "监听端口"
     ui_item 9 "查询端口"
-    ui_item 10 "启用 BBR"
+    ui_item 10 "BBR 拥塞控制" "状态、启用与恢复托管配置"
     ui_item 11 "IP 地址优先级"
     ui_item 0 "返回"
     choice="$(read_input "请选择" "0")"
@@ -208,7 +282,7 @@ network_menu() {
       7) network_connections || true ;;
       8) network_list_ports ;;
       9) network_port_detail || true ;;
-      10) network_enable_bbr || true ;;
+      10) network_bbr_manage || true ;;
       11) network_set_address_preference || true ;;
       0) return 0 ;;
       *) warn "未知选项"; continue ;;

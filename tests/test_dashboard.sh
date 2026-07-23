@@ -22,6 +22,9 @@ platform_detect() {
 command_exists() { [[ "$1" == ss || "$1" == docker ]]; }
 package_upgradable_count() { printf '7'; }
 service_state() { printf 'active'; }
+service_exists() { [[ "$1" == "fail2ban.service" ]]; }
+platform_firewall_active() { return 0; }
+timedatectl() { [[ "$1" == "show" ]] && printf 'yes\n'; }
 systemctl() {
   case "$1" in
     --failed) return 0 ;;
@@ -37,7 +40,7 @@ df() {
 }
 
 output="$(dashboard_show)"
-grep -q '^  系统              Debian GNU/Linux 13' <<<"$output" || {
+grep -q '^│  系统              Debian GNU/Linux 13' <<<"$output" || {
   printf 'FAIL: 仪表盘中文标签没有按显示宽度对齐\n' >&2
   exit 1
 }
