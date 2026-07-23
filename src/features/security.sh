@@ -94,11 +94,11 @@ security_fail2ban_jail_manage() {
         local address
         [[ -n "$banned" ]] || { warn "当前 Jail 没有封禁 IP。"; pause; continue; }
         address="$(read_input "待解除的 IP" "")"
-        valid_firewall_source "$address" && [[ "$address" != "any" && "$address" != */* ]] || {
+        if ! valid_firewall_source "$address" || [[ "$address" == "any" || "$address" == */* ]]; then
           warn "IP 地址格式无效。"
           pause
           continue
-        }
+        fi
         tr ' ' '\n' <<<"$banned" | grep -Fxq "$address" || {
           warn "$address 不在当前封禁清单中。"
           pause

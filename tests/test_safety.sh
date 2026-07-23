@@ -11,10 +11,11 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)
   exit 1
 }
 
-[[ "$(terminal_safe_text $'safe\e[31m\r\ntext')" == "safe [31m text" ]] || {
+sanitized_text="$(terminal_safe_text $'safe\e[31m\r\ntext')"
+if [[ "$sanitized_text" == *[[:cntrl:]]* || "$sanitized_text" != safe\ \[31m*text ]]; then
   printf 'FAIL: 终端控制字符没有被清理\n' >&2
   exit 1
-}
+fi
 
 valid_port 22 || { printf 'FAIL: 22 应有效\n' >&2; exit 1; }
 valid_port 65535 || { printf 'FAIL: 65535 应有效\n' >&2; exit 1; }

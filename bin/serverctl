@@ -255,7 +255,9 @@ main() {
       ;;
     timer)
       ((${#arguments[@]} == 1)) || die "timer 需要且只接受一个 Timer 名称"
-      valid_service_name "${arguments[0]}" && [[ "${arguments[0]}" == *.timer ]] || die "Timer 名称格式无效"
+      if ! valid_service_name "${arguments[0]}" || [[ "${arguments[0]}" != *.timer ]]; then
+        die "Timer 名称格式无效"
+      fi
       unit_exists "${arguments[0]}" || die "没有找到 Timer：${arguments[0]}"
       services_timer_select "${arguments[0]}"
       ;;

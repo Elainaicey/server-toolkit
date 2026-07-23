@@ -41,11 +41,11 @@ services_timers() {
     systemctl list-timers --all --no-pager 2>/dev/null || ui_empty "无法读取 Timer"
     timer="$(read_input "输入完整 Timer 名称进行管理；输入 0 返回" "0")"
     [[ "$timer" == "0" ]] && return 0
-    valid_service_name "$timer" && [[ "$timer" == *.timer ]] || {
+    if ! valid_service_name "$timer" || [[ "$timer" != *.timer ]]; then
       warn "Timer 名称格式无效。"
       pause
       continue
-    }
+    fi
     unit_exists "$timer" || { warn "没有找到 Timer：$timer"; pause; continue; }
     services_timer_select "$timer"
   done

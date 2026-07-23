@@ -316,7 +316,7 @@ docker_menu() {
       4) docker_images || true ;;
       5) docker_resources || true ;;
       6) docker_storage || true ;;
-      7) docker_compose_manage || true ;;
+      7) docker_compose_manage "" || true ;;
       8) docker_container_action || true ;;
       9) docker_cleanup || true ;;
       10)
