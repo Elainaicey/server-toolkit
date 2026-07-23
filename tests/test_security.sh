@@ -6,6 +6,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)
 
 # shellcheck source=../src/core/runtime.sh
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 # shellcheck source=../src/features/security.sh
 . "$ROOT_DIR/src/features/security.sh"
 
@@ -23,39 +24,175 @@ if security_certificate_days_left 'not-a-date' "$now" >/dev/null; then
   exit 1
 fi
 
+auth_events="$(security_auth_event_rows <<'EOF'
+Jul 24 10:00:00 host sshd[100]: Failed password for invalid user admin from 203.0.113.10 port 50000 ssh2
+Jul 24 10:00:01 host sshd[101]: Failed password for root from 203.0.113.10 port 50001 ssh2
+Jul 24 10:00:02 host sshd[102]: Invalid user guest from 203.0.113.11 port 50002
+Jul 24 10:00:03 host sshd[103]: Accepted publickey for deploy from 198.51.100.20 port 50003 ssh2
+EOF
+)"
+[[ "$(grep -c '^failed|' <<<"$auth_events")" -eq 3 &&
+  "$(grep -c '^accepted|' <<<"$auth_events")" -eq 1 ]] || {
+  printf 'FAIL: SSH 登录事件解析数量错误\n' >&2
+  exit 1
+}
+failed_sources="$(security_auth_failed_sources <<<"$auth_events")"
+grep -Fxq '2|203.0.113.10' <<<"$failed_sources" || {
+  printf 'FAIL: SSH 失败来源聚合错误\n' >&2
+  exit 1
+}
+if security_exact_ip_valid any || security_exact_ip_valid 10.0.0.0/8 ||
+  security_exact_ip_valid 'host;reboot'; then
+  printf 'FAIL: SSH 来源处置接受了非明确 IP\n' >&2
+  exit 1
+fi
+
 fail2ban-client() {
-  case "${2:-}" in
-    sshd) printf 'Currently banned: 2\n' ;;
-    nginx) printf 'Currently banned: 1\n' ;;
-  esac
+  if [[ "${1:-}" == "get" ]]; then
+    case "${3:-}" in
+      bantime) printf '3600\n' ;;
+      findtime) printf '600\n' ;;
+      maxretry) printf '5\n' ;;
+    esac
+  else
+    case "${2:-}" in
+      sshd) printf 'Currently banned: 2\n' ;;
+      nginx) printf 'Currently banned: 1\n' ;;
+    esac
+  fi
 }
 [[ "$(security_fail2ban_total_banned $'sshd\nnginx')" == "3" ]] || {
   printf 'FAIL: Fail2ban 封禁数量汇总错误\n' >&2
   exit 1
 }
+[[ "$(security_fail2ban_jail_setting sshd bantime)" == "3600" &&
+  "$(security_fail2ban_seconds_label 3600)" == "1 小时" ]] || {
+  printf 'FAIL: Fail2ban Jail 有效参数解析错误\n' >&2
+  exit 1
+}
 
-captured=""
+ssh_settings=$'port 22\nlistenaddress 0.0.0.0:22\nlistenaddress [::]:22\npasswordauthentication no\npermitrootlogin prohibit-password'
+[[ "$(security_ssh_effective_values "$ssh_settings" listenaddress)" == "0.0.0.0:22, [::]:22" ]] || {
+  printf 'FAIL: SSH 多值有效配置解析错误\n' >&2
+  exit 1
+}
+[[ "$(security_ssh_effective_values "$ssh_settings" passwordauthentication)" == "no" ]] || {
+  printf 'FAIL: SSH 单值有效配置解析错误\n' >&2
+  exit 1
+}
+
+# 由 security_ssh_effective_matches 间接调用。
+# shellcheck disable=SC2329
+sshd() {
+  cat <<'EOF'
+port 2222
+passwordauthentication no
+kbdinteractiveauthentication no
+pubkeyauthentication yes
+permitrootlogin prohibit-password
+EOF
+}
+security_ssh_effective_matches /tmp/sshd_config 2222 1 1 || {
+  printf 'FAIL: SSH 最终生效值校验拒绝了安全配置\n' >&2
+  exit 1
+}
+if security_ssh_effective_matches /tmp/sshd_config 22 1 1; then
+  printf 'FAIL: SSH 最终生效值校验接受了错误配置\n' >&2
+  exit 1
+fi
+# shellcheck disable=SC2329
+sshd() {
+  cat <<'EOF'
+port 2222
+passwordauthentication yes
+kbdinteractiveauthentication yes
+pubkeyauthentication yes
+permitrootlogin yes
+EOF
+}
+if security_ssh_effective_matches /tmp/sshd_config 2222 1 1; then
+  printf 'FAIL: SSH 最终生效值校验接受了不安全认证配置\n' >&2
+  exit 1
+fi
+unset -f sshd
+
+ssh_config="$(mktemp)"
+printf '# comment\nInclude /etc/ssh/sshd_config.d/*.conf\nPort 22\n' >"$ssh_config"
+security_ssh_dropin_has_precedence "$ssh_config" || {
+  printf 'FAIL: SSH Include 优先级检查拒绝了首个有效指令\n' >&2
+  exit 1
+}
+printf 'Port 22\nInclude /etc/ssh/sshd_config.d/*.conf\n' >"$ssh_config"
+if security_ssh_dropin_has_precedence "$ssh_config"; then
+  printf 'FAIL: SSH Include 优先级检查接受了后置 Include\n' >&2
+  exit 1
+fi
+rm -f -- "$ssh_config"
+
+mapfile -t expanded_rules < <(security_firewall_expand_specs '443/tcp, 80/tcp, 53/udp' tcp)
+[[ "${#expanded_rules[@]}" -eq 3 && "${expanded_rules[0]}" == "443/tcp" &&
+  "${expanded_rules[1]}" == "80/tcp" && "${expanded_rules[2]}" == "53/udp" ]] || {
+  printf 'FAIL: 逗号分隔 UFW 规则解析错误\n' >&2
+  exit 1
+}
+mapfile -t expanded_rules < <(security_firewall_expand_specs '80,443' both)
+[[ "${#expanded_rules[@]}" -eq 4 && "${expanded_rules[0]}" == "80/tcp" &&
+  "${expanded_rules[1]}" == "80/udp" && "${expanded_rules[2]}" == "443/tcp" &&
+  "${expanded_rules[3]}" == "443/udp" ]] || {
+  printf 'FAIL: UFW 公共协议展开错误\n' >&2
+  exit 1
+}
+if security_firewall_expand_specs '443/tcp,,80/tcp' tcp >/dev/null ||
+  security_firewall_expand_specs '70000/tcp' tcp >/dev/null; then
+  printf 'FAIL: 接受了无效 UFW 规则列表\n' >&2
+  exit 1
+fi
+security_firewall_specs_need_protocol '80,443/tcp' || {
+  printf 'FAIL: 没有识别缺少协议的 UFW 规则\n' >&2
+  exit 1
+}
+if security_firewall_specs_need_protocol '80/tcp,443/tcp'; then
+  printf 'FAIL: 错误识别了已指定协议的 UFW 规则\n' >&2
+  exit 1
+fi
+
+firewall_input='443/tcp,80/tcp'
+captured_calls=()
 command_exists() { [[ "$1" == "ufw" ]]; }
 read_input() {
   case "$1" in
-    "端口或范围") printf '8443' ;;
-    "协议") printf '2' ;;
-    "来源 IP/CIDR；any 表示任意来源") printf 'any' ;;
+    "端口规则（逗号分隔）") printf '%s' "$firewall_input" ;;
+    "公共协议") printf '2' ;;
+    "来源") printf 'any' ;;
     *) printf '%s' "${2:-}" ;;
   esac
 }
 confirm() { return 0; }
 require_root() { :; }
-run() { captured="$1 $2 $3"; }
+run() {
+  local rendered=""
+  printf -v rendered '%s ' "$@"
+  captured_calls+=("${rendered% }")
+}
 ui_page() { :; }
 ui_action() { :; }
+ui_hint() { :; }
 ui_section() { :; }
 ui_kv() { :; }
 ui_success() { :; }
 
 security_firewall_rule >/dev/null
-[[ "$captured" == "ufw allow 8443/udp" ]] || {
-  printf 'FAIL: UDP 防火墙规则构造错误\n' >&2
+[[ "${#captured_calls[@]}" -eq 2 && "${captured_calls[0]}" == "ufw allow 443/tcp" &&
+  "${captured_calls[1]}" == "ufw allow 80/tcp" ]] || {
+  printf 'FAIL: 批量 UFW 规则构造错误\n' >&2
+  exit 1
+}
+
+firewall_input='8443'
+captured_calls=()
+security_firewall_rule >/dev/null
+[[ "${#captured_calls[@]}" -eq 1 && "${captured_calls[0]}" == "ufw allow 8443/udp" ]] || {
+  printf 'FAIL: 未指定协议的 UFW 规则构造错误\n' >&2
   exit 1
 }
 

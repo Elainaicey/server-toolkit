@@ -6,6 +6,7 @@ IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 . "$ROOT_DIR/src/features/software/prompts.sh"
 
 NO_COLOR=1

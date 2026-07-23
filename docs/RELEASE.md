@@ -1,43 +1,45 @@
 # 发布流程
 
-Server Toolkit 使用语义化版本号，并以 `v<版本>` 作为 Git 标签。`VERSION` 是运行时和发布流程的唯一版本来源。
+Server Toolkit 使用语义化版本号，并以 `v<版本>` 作为 Git 标签。`VERSION` 是运行时和发布流程的唯一版本来源，正式说明保存在 `docs/releases/<版本>.md`。
 
 ## 发布前检查
 
-1. 确认 `VERSION` 与 `docs/CHANGELOG.md` 的发布章节一致。
+1. 确认 `VERSION`、`docs/CHANGELOG.md` 和对应正式发布说明使用同一版本。
 2. 确认目标提交已合并到 `main`，工作区没有未提交修改。
 3. 确认发行归档包含 MIT `LICENSE` 和版权声明。
-4. 执行发布检查：
+4. 在 Debian 或 Ubuntu 测试机完成 SSH、UFW、Swap、systemd、软件安装和卸载的人工冒烟。
+5. 执行发布检查：
 
 ```bash
-bash scripts/release-check.sh v0.2.0
+bash scripts/release-check.sh v0.3.0
 ```
 
-## 创建 0.2.0 发布
+## 创建 0.3.0 发布
 
 ```bash
 git switch main
 git pull --ff-only origin main
-git tag -a v0.2.0 -m "Server Toolkit 0.2.0"
-git push origin v0.2.0
+git tag -a v0.3.0 -m "Server Toolkit 0.3.0"
+git push origin v0.3.0
 ```
 
-标签推送后，GitHub Actions 将再次运行语法检查、ShellCheck、单元测试和冒烟测试，随后创建：
+标签推送后，GitHub Actions 会再次运行仓库格式、Bash 语法、逐文件 ShellCheck、单元测试、CLI 冒烟和发布一致性检查，随后创建：
 
-- `server-toolkit-0.2.0.tar.gz`
-- `server-toolkit-0.2.0.tar.gz.sha256`
-- GitHub Release 与自动生成的变更说明
+- `server-toolkit-0.3.0.tar.gz`
+- `server-toolkit-0.3.0.tar.gz.sha256`
+- 使用 `docs/releases/0.3.0.md` 内容的 GitHub Release
 
-如果工作流失败，应修复问题并发布新的版本号；不要移动已经公开使用的版本标签。
+如果工作流失败，应修复问题并使用新的版本号重新发布；不要移动已经公开使用的标签。
 
 ## 发布后验证
 
 在一台全新的 Debian 或 Ubuntu VPS 上运行：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/tags/v0.2.0/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/tags/v0.3.0/install.sh)
 serverctl version
+serverctl doctor
 serverctl status
 ```
 
-验证安装目录、命令入口、软件详情、更新检查和卸载流程后，再将 README 中的推荐安装通道切换到稳定标签。
+继续验证软件详情、单项安装与移除、服务生命周期、备份与恢复、自更新和两种卸载模式。涉及 SSH、防火墙或 Swap 的测试必须保留服务商控制台，并优先使用可随时回滚的测试实例。

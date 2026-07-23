@@ -26,10 +26,13 @@ file|基础|file|识别文件类型与内容格式|file|
 less|基础|less|分页浏览文本与命令输出|less|
 man-db|基础|man-db|系统手册页查询工具|man-db|
 locales|基础|Locales|系统语言与区域设置数据|locales|
-ripgrep|命令行|ripgrep|高速文本搜索工具|ripgrep|
-fd|命令行|fd|文件查找工具，Debian 命令名为 fdfind|fd-find|
-bat|命令行|bat|高亮文件查看器，Debian 命令名通常为 batcat|bat|
-fzf|命令行|fzf|模糊查找工具|fzf|
+ripgrep|命令行|ripgrep|高速文本搜索工具，优先使用官方稳定版|ripgrep|official_release
+fd|命令行|fd|现代文件查找工具，优先使用官方稳定版|fd-find|official_release
+bat|命令行|bat|带语法高亮的文件查看器，优先使用官方稳定版|bat|official_release
+fzf|命令行|fzf|通用模糊查找器，优先使用官方稳定版|fzf|official_release
+eza|命令行|eza|现代化 ls 替代工具，来自项目官方 Release||official_release
+zoxide|命令行|zoxide|学习使用习惯的智能目录跳转工具||official_release
+fastfetch|命令行|Fastfetch|快速展示系统和硬件信息的现代工具||official_release
 tree|命令行|tree|以树形显示目录|tree|
 neovim|命令行|Neovim|现代 Vim 编辑器|neovim|
 shellcheck|命令行|ShellCheck|Shell 脚本静态分析工具|shellcheck|
@@ -81,6 +84,9 @@ sysstat|监控|sysstat|sar 和 iostat 性能统计工具|sysstat|
 iotop|监控|iotop|磁盘 IO 监控工具|iotop|
 iftop|监控|iftop|实时网络流量监控|iftop|
 ncdu|监控|ncdu|磁盘占用分析工具|ncdu|
+bottom|监控|bottom|跨平台终端资源监控器，命令为 btm||official_release
+dust|监控|dust|直观展示目录空间占用的 du 替代工具||official_release
+duf|监控|duf|现代化磁盘使用情况查看工具||official_release
 strace|监控|strace|系统调用跟踪工具|strace|
 nload|监控|nload|网卡流量监控工具|nload|
 atop|监控|atop|系统与进程历史性能监控|atop|
@@ -119,6 +125,8 @@ autoconf|开发|Autoconf|生成可移植 configure 构建脚本|autoconf|
 automake|开发|Automake|生成标准 Makefile 构建文件|automake|
 libtool|开发|GNU Libtool|管理可移植共享库构建|libtool|
 meson|开发|Meson|现代化的高性能构建系统|meson|
+hyperfine|开发|hyperfine|支持统计分析的命令行基准测试工具||official_release
+just|开发|just|面向项目命令的现代任务运行器||official_release
 python|运行时|Python 3|Python 3 解释器|python3|
 pip|运行时|pip|Python 包管理器|python3-pip|
 python-venv|运行时|Python venv|Python 虚拟环境支持|python3-venv|

@@ -6,11 +6,12 @@ IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 . "$ROOT_DIR/src/features/system/settings.sh"
 
 test_root="$(mktemp -d)"
 trap 'rm -rf -- "$test_root"' EXIT
-STATE_ROOT="$test_root/state"
+STATE_ROOT="$test_root/server-toolkit"
 mkdir -p "$STATE_ROOT"
 swap_file="$test_root/swapfile"
 touch "$swap_file"

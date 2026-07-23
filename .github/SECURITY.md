@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are developed for the latest `0.1.x` revision on the `main` branch. Older commits and unmerged development branches are not maintained as separate release lines.
+Security fixes are developed for the latest published release and the current `main` branch. Older releases, commits, and unmerged development branches are not maintained as separate security lines.
 
 ## Reporting a vulnerability
 

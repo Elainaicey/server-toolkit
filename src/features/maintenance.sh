@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+. "$ROOT_DIR/src/features/maintenance/doctor.sh"
+
 toolkit_about() {
   ui_page "关于 Server Toolkit" "版本、路径与项目资源"
   ui_panel_begin "版本"
@@ -10,6 +12,7 @@ toolkit_about() {
   ui_panel_kv "安装目录" "$ROOT_DIR"
   ui_panel_kv "软件目录" "$SOFTWARE_CATALOG"
   ui_panel_kv "配置备份" "$BACKUP_ROOT"
+  ui_panel_kv "Docker 卷备份" "$DOCKER_VOLUME_BACKUP_ROOT"
   ui_panel_kv "操作记录" "$AUDIT_LOG"
   ui_panel_end
   ui_note "项目主页：https://github.com/Elainaicey/server-toolkit"
@@ -20,24 +23,6 @@ toolkit_remote_version() {
   curl -fsSL --retry 2 --connect-timeout 5 --max-time 15 \
     "https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/heads/main/VERSION" 2>/dev/null |
     tr -d '[:space:]'
-}
-
-toolkit_check_update() {
-  local latest
-  ui_page "检查项目更新" "比较本机版本与 GitHub main 分支的最新版本"
-  latest="$(toolkit_remote_version)" || { warn "无法连接 GitHub 或读取远端版本。"; return 1; }
-  [[ "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { warn "远端版本格式无效：$latest"; return 1; }
-  ui_panel_begin "版本状态"
-  ui_panel_kv "当前版本" "$SERVERCTL_VERSION"
-  ui_panel_kv "远端版本" "$latest" "$CYAN"
-  ui_panel_end
-  if dpkg --compare-versions "$latest" gt "$SERVERCTL_VERSION"; then
-    ui_status "结果" "发现新版本" "warn"
-  elif [[ "$latest" == "$SERVERCTL_VERSION" ]]; then
-    ui_status "结果" "已经是最新发布版本" "good"
-  else
-    ui_status "结果" "当前版本高于远端版本" "neutral"
-  fi
 }
 
 toolkit_self_update() {
@@ -64,7 +49,7 @@ toolkit_self_update() {
     . "$ROOT_DIR/config/installation.conf"
     bin_path="${SERVER_TOOLKIT_BIN_PATH:-$bin_path}"
   fi
-  installer="$(mktemp)"
+  installer="$(mktemp)" || { warn "无法创建更新安装器临时文件。"; return 1; }
   if ! curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 \
     "https://raw.githubusercontent.com/Elainaicey/server-toolkit/refs/heads/main/scripts/install.sh" -o "$installer"; then
     rm -f -- "$installer"
@@ -93,7 +78,7 @@ toolkit_uninstall() {
     # shellcheck source=/dev/null
     . "$install_metadata"
     bin_path="${SERVER_TOOLKIT_BIN_PATH:-$bin_path}"
-    export SERVER_TOOLKIT_BACKUP_ROOT SERVER_TOOLKIT_LOG_ROOT SERVER_TOOLKIT_STATE_ROOT
+    export SERVER_TOOLKIT_BACKUP_ROOT SERVER_TOOLKIT_DOCKER_BACKUP_ROOT SERVER_TOOLKIT_LOG_ROOT SERVER_TOOLKIT_STATE_ROOT
   fi
 
   ui_page "卸载 Server Toolkit" "安全删除程序文件与可选的项目数据"

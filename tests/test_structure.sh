@@ -20,6 +20,7 @@ required=(
   docs/CHANGELOG.md
   bin/serverctl
   config/software.tsv
+  config/official-releases.tsv
   scripts/install.sh
   scripts/check-repository.sh
   scripts/check-shell.sh
@@ -28,15 +29,57 @@ required=(
   .github/workflows/release.yml
   docs/RELEASE.md
   src/core/runtime.sh
-  src/core/catalog.sh
+  src/core/validation.sh
+  src/features/software/catalog.sh
+  src/features/software/catalog/query.sh
+  src/features/software/catalog/presentation.sh
+  src/features/software/catalog/actions.sh
+  src/features/software/catalog/views.sh
   src/features/dashboard.sh
+  src/features/security.sh
+  src/features/security/overview.sh
+  src/features/security/exposure.sh
+  src/features/security/activity.sh
+  src/features/security/fail2ban.sh
+  src/features/security/certificates.sh
+  src/features/security/firewall.sh
+  src/features/security/ssh.sh
+  src/features/security/menu.sh
+  src/features/services.sh
+  src/features/services/overview.sh
+  src/features/services/journal.sh
+  src/features/services/units.sh
+  src/features/services/audit.sh
+  src/features/services/menu.sh
   src/features/system/settings.sh
+  src/features/system/diagnostics.sh
+  src/features/system/menu.sh
+  src/features/system/packages.sh
+  src/features/system/storage.sh
+  src/features/system/triage.sh
+  src/features/network/diagnostics.sh
+  src/features/network/overview.sh
+  src/features/network/tuning.sh
+  src/features/network/menu.sh
   src/features/software.sh
   src/features/software/oh-my-zsh.sh
   src/features/software/prompts.sh
+  src/features/software/releases.sh
   src/features/apps.sh
+  src/features/apps/menu.sh
+  src/features/apps/services.sh
+  src/features/apps/services/metadata.sh
+  src/features/apps/services/inspect.sh
+  src/features/apps/services/actions.sh
+  src/features/apps/services/menu.sh
   src/features/apps/docker.sh
+  src/features/apps/docker/inventory.sh
+  src/features/apps/docker/compose.sh
+  src/features/apps/docker/containers.sh
+  src/features/apps/docker/menu.sh
   src/features/maintenance.sh
+  src/features/maintenance/doctor.sh
+  src/features/apps/docker/volumes.sh
 )
 for path in "${required[@]}"; do
   [[ -e "$ROOT_DIR/$path" ]] || { printf 'FAIL: 缺少 %s\n' "$path" >&2; exit 1; }
@@ -66,12 +109,39 @@ done
   exit 1
 }
 
+for entry in \
+  src/features/security.sh \
+  src/features/services.sh \
+  src/features/apps/docker.sh \
+  src/features/software/catalog.sh \
+  src/features/network.sh \
+  src/features/system.sh \
+  src/features/apps.sh \
+  src/features/apps/services.sh; do
+  lines="$(wc -l < "$ROOT_DIR/$entry" | tr -d '[:space:]')"
+  (( lines <= 20 )) || {
+    printf 'FAIL: 领域入口重新堆积了业务实现：%s (%s 行)\n' "$entry" "$lines" >&2
+    exit 1
+  }
+done
+
 for legacy in serverctl.sh lib features catalog profiles modules; do
   [[ ! -e "$ROOT_DIR/$legacy" ]] || { printf 'FAIL: 旧路径仍然存在：%s\n' "$legacy" >&2; exit 1; }
 done
 
-[[ "$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")" == "0.2.0" ]] || {
-  printf 'FAIL: VERSION 不是 0.2.0\n' >&2
+for removed_feature in \
+  src/features/system/accounts.sh \
+  src/features/services/timers.sh \
+  tests/test_accounts.sh \
+  tests/test_health.sh; do
+  [[ ! -e "$ROOT_DIR/$removed_feature" ]] || {
+    printf 'FAIL: root-only 精简内容仍然存在：%s\n' "$removed_feature" >&2
+    exit 1
+  }
+done
+
+[[ "$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")" == "0.3.0" ]] || {
+  printf 'FAIL: VERSION 不是 0.3.0\n' >&2
   exit 1
 }
 

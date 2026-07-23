@@ -5,9 +5,10 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 TEST_ROOT="$(mktemp -d)"
 trap 'rm -rf -- "$TEST_ROOT"' EXIT
-SERVER_TOOLKIT_BACKUP_ROOT="$TEST_ROOT/backups"
+SERVER_TOOLKIT_BACKUP_ROOT="$TEST_ROOT/server-toolkit/backups"
 
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 . "$ROOT_DIR/src/core/backup.sh"
 
 mkdir -p "$SERVER_TOOLKIT_BACKUP_ROOT/20260719-120000-42/etc"
@@ -30,6 +31,62 @@ if backup_verify '../etc' >/dev/null 2>&1; then
   printf 'FAIL: 完整性校验接受了危险快照名\n' >&2
   exit 1
 fi
+
+for snapshot in 20260720-120000-43 20260721-120000-44 20260722-120000-45; do
+  mkdir -p "$SERVER_TOOLKIT_BACKUP_ROOT/$snapshot/etc"
+  printf '/etc/example.conf\n' >"$SERVER_TOOLKIT_BACKUP_ROOT/$snapshot/manifest.txt"
+  printf '%s\n' "$snapshot" >"$SERVER_TOOLKIT_BACKUP_ROOT/$snapshot/etc/example.conf"
+done
+
+BACKUP_SESSION="$SERVER_TOOLKIT_BACKUP_ROOT/20260720-120000-43"
+mapfile -t cleanup_candidates < <(backup_cleanup_keep_candidates 2)
+[[ "${#cleanup_candidates[@]}" -eq 1 && "${cleanup_candidates[0]}" == "20260719-120000-42" ]] || {
+  printf 'FAIL: 保留数量清理没有保护最新快照或当前会话\n' >&2
+  exit 1
+}
+# backup_cleanup_keep_candidates 从运行时读取当前备份会话。
+# shellcheck disable=SC2034
+BACKUP_SESSION=""
+mapfile -t cleanup_candidates < <(backup_cleanup_keep_candidates 2)
+[[ "${#cleanup_candidates[@]}" -eq 2 && "${cleanup_candidates[0]}" == "20260720-120000-43" &&
+  "${cleanup_candidates[1]}" == "20260719-120000-42" ]] || {
+  printf 'FAIL: 保留最近快照的候选清单错误\n' >&2
+  exit 1
+}
+if backup_cleanup_keep_candidates 0 >/dev/null || backup_cleanup_keep_candidates text >/dev/null; then
+  printf 'FAIL: 接受了无效备份保留数量\n' >&2
+  exit 1
+fi
+total_bytes="$(backup_total_bytes)"
+if [[ ! "$total_bytes" =~ ^[0-9]+$ ]] || (( total_bytes <= 0 )); then
+  printf 'FAIL: 无法统计备份总占用\n' >&2
+  exit 1
+fi
+[[ -n "$(backup_human_bytes "$total_bytes")" ]] || {
+  printf 'FAIL: 无法格式化备份占用\n' >&2
+  exit 1
+}
+
+backup_set_label 20260719-120000-42 "SSH 调整前" >/dev/null
+[[ "$(backup_snapshot_label 20260719-120000-42)" == "SSH 调整前" ]] || {
+  printf 'FAIL: 无法写入或读取快照备注\n' >&2
+  exit 1
+}
+backup_set_protection 20260719-120000-42 1 >/dev/null
+backup_snapshot_protected 20260719-120000-42 || {
+  printf 'FAIL: 快照保护标记没有生效\n' >&2
+  exit 1
+}
+mapfile -t cleanup_candidates < <(backup_cleanup_keep_candidates 2)
+if printf '%s\n' "${cleanup_candidates[@]}" | grep -Fxq 20260719-120000-42; then
+  printf 'FAIL: 批量清理候选包含受保护快照\n' >&2
+  exit 1
+fi
+if (backup_delete 20260719-120000-42 >/dev/null 2>&1); then
+  printf 'FAIL: 直接删除接受了受保护快照\n' >&2
+  exit 1
+fi
+backup_set_protection 20260719-120000-42 0 >/dev/null
 
 DRY_RUN=1
 backup_restore 20260719-120000-42 /etc/example.conf >/dev/null

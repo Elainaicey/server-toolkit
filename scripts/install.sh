@@ -13,6 +13,7 @@ PURGE_DATA=0
 TEMP_ROOT=""
 STAGE_DIR=""
 BACKUP_ROOT="${SERVER_TOOLKIT_BACKUP_ROOT:-/var/backups/server-toolkit}"
+DOCKER_BACKUP_ROOT="${SERVER_TOOLKIT_DOCKER_BACKUP_ROOT:-/var/backups/server-toolkit-docker}"
 LOG_ROOT="${SERVER_TOOLKIT_LOG_ROOT:-/var/log/server-toolkit}"
 STATE_ROOT="${SERVER_TOOLKIT_STATE_ROOT:-/var/lib/server-toolkit}"
 
@@ -57,6 +58,7 @@ confirm() {
 safe_install_path() {
   local path="$1"
   [[ "$path" == /* ]] || return 1
+  [[ "$path" != */ && "$path" != *//* && "$path" != *[[:cntrl:]]* ]] || return 1
   [[ "$path" != *'/../'* && "$path" != */.. && "$path" != *'/./'* && "$path" != */. ]] || return 1
   case "$path" in
     /|/bin|/boot|/dev|/etc|/home|/lib|/lib64|/opt|/proc|/root|/run|/sbin|/srv|/sys|/tmp|/usr|/var)
@@ -64,6 +66,51 @@ safe_install_path() {
       ;;
   esac
   [[ "${path#/}" == */* ]]
+}
+
+safe_toolkit_data_path() {
+  local path="$1" component
+  local components=()
+  safe_install_path "$path" || return 1
+  IFS='/' read -r -a components <<<"${path#/}"
+  for component in "${components[@]}"; do
+    case "$component" in
+      server-toolkit|server-toolkit-*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+normalized_link_target() {
+  local link="$1" target
+  [[ -L "$link" ]] || return 1
+  target="$(readlink "$link")" || return 1
+  if [[ "$target" != /* ]]; then
+    target="$(dirname -- "$link")/$target"
+  fi
+  readlink -m -- "$target"
+}
+
+source_archive_root() {
+  local archive="$1" listing="$2" verbose="$3" roots
+  tar -tzf "$archive" >"$listing" || return 1
+  awk '
+    {
+      name=$0
+      sub(/^\.\//, "", name)
+      if (name == "" || name ~ /^\// || name == ".." || name ~ /(^|\/)\.\.(\/|$)/) {
+        failed=1
+      }
+    }
+    END {exit failed}
+  ' "$listing" || return 1
+  (( $(wc -l <"$listing") <= 5000 )) || return 1
+  LC_ALL=C tar -tvzf "$archive" >"$verbose" || return 1
+  awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" {bad=1} END {exit bad}' "$verbose" || return 1
+  awk '$3 ~ /^[0-9]+$/ {total += $3} END {exit total > 268435456}' "$verbose" || return 1
+  roots="$(awk -F/ 'NF && $1 != "" {print $1}' "$listing" | LC_ALL=C sort -u)"
+  [[ -n "$roots" && "$roots" != *$'\n'* && "$roots" =~ ^[a-zA-Z0-9._-]+$ ]] || return 1
+  printf '%s' "$roots"
 }
 
 is_toolkit_dir() {
@@ -99,7 +146,7 @@ done
 
 [[ "$EUID" -eq 0 ]] || die "请使用 root 运行：sudo bash install.sh"
 safe_install_path "$INSTALL_DIR" || die "不安全的安装目录：$INSTALL_DIR"
-[[ "$BIN_PATH" == /* && "$BIN_PATH" != / && ! -d "$BIN_PATH" ]] || die "命令入口必须是绝对文件路径：$BIN_PATH"
+safe_install_path "$BIN_PATH" && [[ ! -d "$BIN_PATH" ]] || die "命令入口必须是安全的绝对文件路径：$BIN_PATH"
 [[ ! -L "$INSTALL_DIR" ]] || die "安装目录不能是符号链接：$INSTALL_DIR"
 
 if [[ "$UNINSTALL" -eq 1 ]]; then
@@ -107,13 +154,15 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
     is_toolkit_dir "$INSTALL_DIR" || die "目录不像 Server Toolkit，拒绝删除：$INSTALL_DIR"
   fi
   if [[ "$PURGE_DATA" -eq 1 ]]; then
-    safe_install_path "$BACKUP_ROOT" || die "不安全的备份目录：$BACKUP_ROOT"
-    safe_install_path "$LOG_ROOT" || die "不安全的日志目录：$LOG_ROOT"
-    safe_install_path "$STATE_ROOT" || die "不安全的状态目录：$STATE_ROOT"
+    safe_toolkit_data_path "$BACKUP_ROOT" || die "不安全的备份目录：$BACKUP_ROOT"
+    safe_toolkit_data_path "$DOCKER_BACKUP_ROOT" || die "不安全的 Docker 卷备份目录：$DOCKER_BACKUP_ROOT"
+    safe_toolkit_data_path "$LOG_ROOT" || die "不安全的日志目录：$LOG_ROOT"
+    safe_toolkit_data_path "$STATE_ROOT" || die "不安全的状态目录：$STATE_ROOT"
     info "彻底清除会删除："
     info "  程序：$INSTALL_DIR"
     info "  命令：$BIN_PATH"
     info "  备份：$BACKUP_ROOT"
+    info "  Docker 卷备份：$DOCKER_BACKUP_ROOT"
     info "  日志：$LOG_ROOT"
     info "  状态：$STATE_ROOT"
     info "已安装的软件和系统配置不会自动删除。"
@@ -125,13 +174,13 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
     info "将删除 $INSTALL_DIR"
     info "若 $BIN_PATH 指向本项目，也将删除该链接"
     if [[ "$PURGE_DATA" -eq 1 ]]; then
-      info "将删除 $BACKUP_ROOT、$LOG_ROOT 和 $STATE_ROOT"
+      info "将删除 $BACKUP_ROOT、$DOCKER_BACKUP_ROOT、$LOG_ROOT 和 $STATE_ROOT"
     fi
     exit 0
   fi
-  resolved_bin="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
-  raw_bin="$(readlink "$BIN_PATH" 2>/dev/null || true)"
-  if [[ "$resolved_bin" == "$INSTALL_DIR/bin/serverctl" || "$raw_bin" == "$INSTALL_DIR/bin/serverctl" ]]; then
+  resolved_bin="$(normalized_link_target "$BIN_PATH" 2>/dev/null || true)"
+  expected_bin="$(readlink -m -- "$INSTALL_DIR/bin/serverctl")"
+  if [[ "$resolved_bin" == "$expected_bin" ]]; then
     rm -f -- "$BIN_PATH"
   fi
   if [[ -d "$INSTALL_DIR" ]]; then
@@ -139,9 +188,10 @@ if [[ "$UNINSTALL" -eq 1 ]]; then
   fi
   if [[ "$PURGE_DATA" -eq 1 ]]; then
     rm -rf -- "$BACKUP_ROOT" "$LOG_ROOT" "$STATE_ROOT"
+    rm -rf -- "$DOCKER_BACKUP_ROOT"
     info "彻底清除完成；软件和系统配置保持现状。"
   else
-    info "卸载完成；$BACKUP_ROOT 与 $LOG_ROOT 未被删除。"
+    info "卸载完成；$BACKUP_ROOT、$DOCKER_BACKUP_ROOT 与 $LOG_ROOT 未被删除。"
   fi
   exit 0
 fi
@@ -150,8 +200,9 @@ if [[ -e "$BIN_PATH" && ! -L "$BIN_PATH" ]]; then
   die "命令入口已经存在且不是符号链接：$BIN_PATH"
 fi
 if [[ -L "$BIN_PATH" ]]; then
-  current_target="$(readlink -f "$BIN_PATH" 2>/dev/null || true)"
-  [[ "$current_target" == "$INSTALL_DIR/bin/serverctl" ]] || die "命令入口指向其他程序：$BIN_PATH"
+  current_target="$(normalized_link_target "$BIN_PATH" 2>/dev/null || true)"
+  expected_target="$(readlink -m -- "$INSTALL_DIR/bin/serverctl")"
+  [[ "$current_target" == "$expected_target" ]] || die "命令入口指向其他程序：$BIN_PATH"
 fi
 if [[ -d "$INSTALL_DIR" ]]; then
   is_toolkit_dir "$INSTALL_DIR" || die "现有目录不属于 Server Toolkit：$INSTALL_DIR"
@@ -166,14 +217,19 @@ else
   command -v tar >/dev/null 2>&1 || die "缺少 tar"
   TEMP_ROOT="$(mktemp -d)"
   archive="$TEMP_ROOT/source.tar.gz"
+  archive_listing="$TEMP_ROOT/source.list"
+  archive_verbose="$TEMP_ROOT/source.verbose"
   info "下载 $REPOSITORY@$REF"
   branch_url="https://github.com/$REPOSITORY/archive/refs/heads/$REF.tar.gz"
   tag_url="https://github.com/$REPOSITORY/archive/refs/tags/$REF.tar.gz"
-  if ! curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$branch_url" -o "$archive"; then
-    curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 "$tag_url" -o "$archive" || die "下载源码失败"
+  if ! curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 --max-filesize 134217728 "$branch_url" -o "$archive"; then
+    curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 --max-filesize 134217728 "$tag_url" -o "$archive" ||
+      die "下载源码失败"
   fi
+  archive_root="$(source_archive_root "$archive" "$archive_listing" "$archive_verbose")" ||
+    die "源码归档结构或文件类型不安全"
   tar -xzf "$archive" -C "$TEMP_ROOT"
-  SOURCE_DIR="$(find "$TEMP_ROOT" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+  SOURCE_DIR="$TEMP_ROOT/$archive_root"
 fi
 
 is_toolkit_dir "$SOURCE_DIR" || die "源码结构不完整"
@@ -206,6 +262,7 @@ find "$STAGE_DIR/src" -type f -name '*.sh' -exec chmod 0644 {} \;
   printf 'SERVER_TOOLKIT_INSTALL_DIR=%q\n' "$INSTALL_DIR"
   printf 'SERVER_TOOLKIT_BIN_PATH=%q\n' "$BIN_PATH"
   printf 'SERVER_TOOLKIT_BACKUP_ROOT=%q\n' "$BACKUP_ROOT"
+  printf 'SERVER_TOOLKIT_DOCKER_BACKUP_ROOT=%q\n' "$DOCKER_BACKUP_ROOT"
   printf 'SERVER_TOOLKIT_LOG_ROOT=%q\n' "$LOG_ROOT"
   printf 'SERVER_TOOLKIT_STATE_ROOT=%q\n' "$STATE_ROOT"
 } >"$STAGE_DIR/config/installation.conf"

@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 
 mapfile -t shell_files < <(
   while IFS= read -r file; do
+    [[ -e "$file" || -L "$file" ]] || continue
     case "$file" in
       install.sh|*.sh|bin/serverctl) printf '%s\n' "$file" ;;
     esac

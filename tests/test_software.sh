@@ -18,6 +18,7 @@ package_installed() { [[ "$1" == "containerd" ]]; }
 confirm() { confirmations=$((confirmations + 1)); return 0; }
 package_remove() { removed="$1"; }
 package_install() { :; }
+package_install_latest() { :; }
 package_invalidate_index() { :; }
 
 software_install_docker >/dev/null 2>&1

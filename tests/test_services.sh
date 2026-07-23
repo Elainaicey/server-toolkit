@@ -6,14 +6,28 @@ IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 . "$ROOT_DIR/src/features/services.sh"
+
+[[ "$(services_format_cpu_time 60000000000)" == "1.0 分钟" ]] || {
+  printf 'FAIL: 服务 CPU 时间格式化错误\n' >&2
+  exit 1
+}
+[[ "$(services_format_bytes invalid)" == "—" ]] || {
+  printf 'FAIL: 无效服务内存值没有安全降级\n' >&2
+  exit 1
+}
+[[ "$(services_path_summary '/etc/a.conf /etc/b.conf')" == "2 个 · /etc/a.conf …" ]] || {
+  printf 'FAIL: 服务 Drop-in 路径摘要错误\n' >&2
+  exit 1
+}
 
 DRY_RUN=1
 captured=""
 confirm() { return 0; }
 require_root() { :; }
-service_exists() { [[ "$1" == "nginx.service" ]]; }
-unit_exists() { [[ "$1" == "nginx.service" || "$1" == "apt-daily.timer" || "$1" == "apt-daily.service" ]]; }
+service_exists() { [[ "$1" == "nginx.service" || "$1" == "apt-daily.service" ]]; }
+unit_exists() { service_exists "$1"; }
 run() { captured="$1 $2 $3"; }
 ui_success() { :; }
 
@@ -27,13 +41,6 @@ if services_apply_action nginx.service reload >/dev/null 2>&1; then
   exit 1
 fi
 
-captured=""
-services_apply_unit_action apt-daily.timer stop >/dev/null
-[[ "$captured" == "systemctl stop apt-daily.timer" ]] || {
-  printf 'FAIL: Timer 没有复用 systemd 生命周期入口\n' >&2
-  exit 1
-}
-
 DRY_RUN=0
 systemctl() {
   if [[ "$1" == "show" && "$4" == "Type" ]]; then
@@ -44,7 +51,7 @@ systemctl() {
     return 1
   fi
 }
-services_apply_unit_action apt-daily.service start >/dev/null || {
+services_apply_action apt-daily.service start >/dev/null || {
   printf 'FAIL: 成功完成的 oneshot 服务被误判为未运行\n' >&2
   exit 1
 }

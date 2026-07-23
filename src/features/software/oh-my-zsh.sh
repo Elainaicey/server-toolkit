@@ -15,7 +15,8 @@ software_target_user() {
 software_target_home() {
   local user="${1:-$(software_target_user)}" home
   home="$(getent passwd "$user" | awk -F: 'NR == 1 {print $6}')"
-  [[ "$home" == /* && "$home" != "/" ]] || die "目标用户主目录不安全：${home:-未知}"
+  [[ "$home" == /* && "$home" != "/" && "$home" =~ ^/[a-zA-Z0-9._/-]+$ ]] || die "目标用户主目录不安全：${home:-未知}"
+  [[ "$home" != *'/../'* && "$home" != */.. && ! -L "$home" ]] || die "目标用户主目录包含不安全路径或符号链接：$home"
   printf '%s' "$home"
 }
 
@@ -65,7 +66,7 @@ software_oh_my_zsh_configure() {
     info "$zshrc 已包含 Oh My Zsh 配置，不重复写入。"
     return 0
   fi
-  backup_file "$zshrc"
+  backup_file "$zshrc" || { warn "无法备份 $zshrc。"; return 1; }
   if [[ "$DRY_RUN" -eq 1 ]]; then
     info "将向 $zshrc 添加 Server Toolkit 托管的 Oh My Zsh 配置块。"
     return 0
@@ -78,8 +79,8 @@ software_oh_my_zsh_configure() {
     'ZSH_THEME="robbyrussell"' \
     'plugins=(git)' \
     "source \"\$ZSH/oh-my-zsh.sh\"" \
-    "$OH_MY_ZSH_BLOCK_END" >>"$zshrc"
-  if [[ "$EUID" -eq 0 ]]; then chown "$user":"$(id -gn "$user")" "$zshrc"; fi
+    "$OH_MY_ZSH_BLOCK_END" >>"$zshrc" || { warn "无法写入 $zshrc。"; return 1; }
+  if [[ "$EUID" -eq 0 ]]; then chown "$user":"$(id -gn "$user")" "$zshrc" || { warn "无法设置 $zshrc 所有者。"; return 1; }; fi
 }
 
 software_oh_my_zsh_remove_config() {
@@ -90,20 +91,24 @@ software_oh_my_zsh_remove_config() {
     warn "$zshrc 中的托管配置块不完整，为避免误删已保留原文件。"
     return 1
   fi
-  backup_file "$zshrc"
+  backup_file "$zshrc" || { warn "无法备份 $zshrc。"; return 1; }
   if [[ "$DRY_RUN" -eq 1 ]]; then
     info "将从 $zshrc 移除 Server Toolkit 托管的配置块。"
     return 0
   fi
-  temporary="$(mktemp)"
-  awk -v begin="$OH_MY_ZSH_BLOCK_BEGIN" -v end="$OH_MY_ZSH_BLOCK_END" '
+  temporary="$(mktemp)" || { warn "无法创建临时文件。"; return 1; }
+  if ! awk -v begin="$OH_MY_ZSH_BLOCK_BEGIN" -v end="$OH_MY_ZSH_BLOCK_END" '
     $0 == begin {managed=1; next}
     $0 == end && managed {managed=0; next}
     !managed {print}
-  ' "$zshrc" >"$temporary"
-  install -m 0644 "$temporary" "$zshrc"
+  ' "$zshrc" >"$temporary"; then
+    rm -f "$temporary"
+    warn "无法生成新的 $zshrc。"
+    return 1
+  fi
+  install -m 0644 "$temporary" "$zshrc" || { rm -f "$temporary"; warn "无法更新 $zshrc。"; return 1; }
   rm -f "$temporary"
-  if [[ "$EUID" -eq 0 ]]; then chown "$user":"$(id -gn "$user")" "$zshrc"; fi
+  if [[ "$EUID" -eq 0 ]]; then chown "$user":"$(id -gn "$user")" "$zshrc" || { warn "无法设置 $zshrc 所有者。"; return 1; }; fi
 }
 
 software_install_oh_my_zsh() {
@@ -116,13 +121,16 @@ software_install_oh_my_zsh() {
     software_oh_my_zsh_installed && { info "Oh My Zsh 已经安装。"; return 0; }
     die "目标目录已存在且不是受支持的官方 Oh My Zsh 仓库：$directory"
   fi
-  package_install zsh git
+  package_install zsh git || return 1
   info "将为用户 $user 安装 Oh My Zsh 到 $directory。"
-  software_run_as_target "$user" "$home" git clone --depth=1 "$OH_MY_ZSH_REPOSITORY" "$directory"
-  software_oh_my_zsh_configure "$user" "$home"
+  software_run_as_target "$user" "$home" git clone --depth=1 "$OH_MY_ZSH_REPOSITORY" "$directory" || {
+    warn "Oh My Zsh 官方仓库克隆失败。"
+    return 1
+  }
+  software_oh_my_zsh_configure "$user" "$home" || return 1
   zsh_path="$(command -v zsh 2>/dev/null || printf '/usr/bin/zsh')"
   if confirm "是否将 $user 的默认 Shell 切换为 $zsh_path？"; then
-    run chsh -s "$zsh_path" "$user"
+    run chsh -s "$zsh_path" "$user" || { warn "默认 Shell 修改失败；Oh My Zsh 已安装，可稍后手动切换。"; return 1; }
   else
     info "已保留 $user 当前的默认 Shell；可稍后执行 chsh -s $zsh_path $user。"
   fi
@@ -136,7 +144,10 @@ software_update_oh_my_zsh() {
   software_oh_my_zsh_installed || die "没有检测到受支持的官方 Oh My Zsh 安装。"
   remote="$(git -C "$directory" remote get-url origin 2>/dev/null || true)"
   software_oh_my_zsh_official_remote "$remote" || die "拒绝更新来源不明的 Oh My Zsh 仓库。"
-  software_run_as_target "$user" "$home" zsh "$directory/tools/upgrade.sh"
+  software_run_as_target "$user" "$home" zsh "$directory/tools/upgrade.sh" || {
+    warn "Oh My Zsh 官方更新程序执行失败。"
+    return 1
+  }
 }
 
 software_remove_oh_my_zsh() {
@@ -148,7 +159,7 @@ software_remove_oh_my_zsh() {
   software_oh_my_zsh_installed || die "没有检测到受支持的官方 Oh My Zsh 安装。"
   remote="$(git -C "$directory" remote get-url origin 2>/dev/null || true)"
   software_oh_my_zsh_official_remote "$remote" || die "拒绝删除来源不明的目录：$directory"
-  software_oh_my_zsh_remove_config "$user" "$home"
-  software_run_as_target "$user" "$home" rm -rf -- "$directory"
+  software_oh_my_zsh_remove_config "$user" "$home" || return 1
+  software_run_as_target "$user" "$home" rm -rf -- "$directory" || { warn "Oh My Zsh 目录删除失败。"; return 1; }
   info "已保留 Zsh、Git、用户的其他配置和默认 Shell 设置。"
 }

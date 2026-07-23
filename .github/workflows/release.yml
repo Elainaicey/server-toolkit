@@ -32,9 +32,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version="$(cat VERSION)"
+          notes_file="docs/releases/$version.md"
           gh release create "$GITHUB_REF_NAME" \
             "dist/server-toolkit-$version.tar.gz" \
             "dist/server-toolkit-$version.tar.gz.sha256" \
             --verify-tag \
             --title "Server Toolkit $version" \
-            --generate-notes
+            --notes-file "$notes_file"

@@ -5,6 +5,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
+. "$ROOT_DIR/src/core/validation.sh"
 . "$ROOT_DIR/src/features/apps/docker.sh"
 
 docker_compose_project_valid edge-proxy || {
@@ -13,6 +14,15 @@ docker_compose_project_valid edge-proxy || {
 }
 if docker_compose_project_valid '../project' || docker_compose_project_valid 'project;reboot'; then
   printf 'FAIL: 接受了危险 Compose 项目名\n' >&2
+  exit 1
+fi
+docker_container_ref_valid web-01 || {
+  printf 'FAIL: 正常容器名称被拒绝\n' >&2
+  exit 1
+}
+if docker_container_ref_valid '../container' || docker_container_ref_valid '--help' ||
+  docker_container_ref_valid 'container;reboot'; then
+  printf 'FAIL: 接受了危险容器名称\n' >&2
   exit 1
 fi
 
@@ -34,5 +44,37 @@ context_output="$(docker_compose_context edge-proxy)"
   printf 'FAIL: Compose 项目上下文解析错误\n' >&2
   exit 1
 }
+
+DOCKER_VOLUME_BACKUP_ROOT="$test_root/server-toolkit-docker"
+backup_id="20260723-120000-42-1234"
+mkdir -p "$test_root/volume-source" "$DOCKER_VOLUME_BACKUP_ROOT/$backup_id"
+printf 'volume data\n' >"$test_root/volume-source/example.txt"
+tar -czf "$DOCKER_VOLUME_BACKUP_ROOT/$backup_id/volume.tar.gz" -C "$test_root/volume-source" .
+checksum="$(sha256sum "$DOCKER_VOLUME_BACKUP_ROOT/$backup_id/volume.tar.gz" | awk '{print $1}')"
+{
+  printf 'format=server-toolkit-docker-volume-v1\n'
+  printf 'created=2026-07-23T12:00:00+08:00\n'
+  printf 'volume=database-data\n'
+  printf 'helper_image=alpine:latest\n'
+  printf 'reason=manual\n'
+  printf 'sha256=%s\n' "$checksum"
+} >"$DOCKER_VOLUME_BACKUP_ROOT/$backup_id/metadata"
+docker_volume_backup_validate_record "$backup_id" || {
+  printf 'FAIL: 正常 Docker 卷备份记录没有通过校验\n' >&2
+  exit 1
+}
+[[ "$(docker_volume_backup_meta "$backup_id" volume)" == "database-data" ]] || {
+  printf 'FAIL: 无法读取 Docker 卷备份元数据\n' >&2
+  exit 1
+}
+if docker_volume_backup_valid_id '../backup' || valid_docker_volume_name 'data:/host'; then
+  printf 'FAIL: Docker 卷备份接受了危险编号或卷名\n' >&2
+  exit 1
+fi
+printf 'tampered\n' >>"$DOCKER_VOLUME_BACKUP_ROOT/$backup_id/volume.tar.gz"
+if docker_volume_backup_validate_record "$backup_id"; then
+  printf 'FAIL: Docker 卷备份校验没有发现归档被修改\n' >&2
+  exit 1
+fi
 
 printf 'PASS: docker\n'

@@ -5,6 +5,7 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 # shellcheck source=../src/core/runtime.sh
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 # shellcheck source=../src/features/system/processes.sh
 . "$ROOT_DIR/src/features/system/processes.sh"
 

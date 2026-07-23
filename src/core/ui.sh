@@ -76,11 +76,6 @@ ui_page() {
   ui_rule
 }
 
-ui_header() {
-  printf '\n%b◇%b %b%s%b\n' "$MAGENTA" "$NC" "$CYAN$BOLD" "$1" "$NC"
-  ui_rule
-}
-
 ui_badge() {
   local label="$1" color="${2:-$GREEN}"
   printf '%b●%b %b%s%b' "$color" "$NC" "$color$BOLD" "$label" "$NC"
@@ -262,6 +257,7 @@ ui_health_summary() {
 }
 
 ui_empty() { printf '  %b◇%b %b%s%b\n' "$MUTED" "$NC" "$MUTED" "$1" "$NC"; }
+ui_hint() { printf '  %b↳%b %b%s%b\n' "$MAGENTA" "$NC" "$MUTED" "$1" "$NC"; }
 ui_note() { printf '\n  %bℹ%b  %b%s%b\n' "$BLUE$BOLD" "$NC" "$BLUE" "$1" "$NC"; }
 ui_success() { printf '\n  %b✓%b  %b%s%b\n' "$GREEN$BOLD" "$NC" "$GREEN" "$1" "$NC"; }
 ui_danger() { printf '\n  %b!%b  %b%s%b\n' "$RED$BOLD" "$NC" "$RED$BOLD" "$1" "$NC" >&2; }

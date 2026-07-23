@@ -174,6 +174,7 @@ system_processes() {
     action="$(read_input "请选择" "0")"
     case "$action" in
       1)
+        ui_hint "输入排行榜或 ps 输出中的数字 PID。"
         pid="$(read_input "PID" "")"
         valid_pid "$pid" || { warn "PID 格式无效。"; pause; continue; }
         system_process_select "$pid" || true

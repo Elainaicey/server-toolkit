@@ -5,7 +5,11 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 cd "$ROOT_DIR"
 
-mapfile -t repository_files < <(git ls-files --cached --others --exclude-standard | LC_ALL=C sort -u)
+mapfile -t repository_files < <(
+  while IFS= read -r file; do
+    [[ -e "$file" || -L "$file" ]] && printf '%s\n' "$file"
+  done < <(git ls-files --cached --others --exclude-standard | LC_ALL=C sort -u)
+)
 (( ${#repository_files[@]} > 0 )) || {
   printf 'FAIL: 仓库中没有可检查文件\n' >&2
   exit 1

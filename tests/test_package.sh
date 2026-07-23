@@ -14,7 +14,12 @@ captured=()
 # shellcheck disable=SC2317,SC2329
 package_installed() { [[ "$1" == "curl" ]]; }
 package_update_index() { updates=$((updates + 1)); }
+# apt_run 由平台模块间接调用。
+# shellcheck disable=SC2317,SC2329
 apt_run() { captured=("$@"); }
+# 本测试聚焦 APT 参数分发；安装后版本验证由平台函数独立负责。
+# shellcheck disable=SC2317,SC2329
+package_verify_candidate() { :; }
 
 package_install curl jq >/dev/null
 [[ "$updates" -eq 1 ]] || { printf 'FAIL: 缺失包没有触发一次索引刷新\n' >&2; exit 1; }
@@ -33,7 +38,29 @@ package_install curl >/dev/null
 
 updates=0
 captured=()
+package_candidate_version() { printf '2.0.0'; }
+# package_install_latest 间接调用该测试桩。
+# shellcheck disable=SC2317,SC2329
+package_has_update() { [[ "$1" == "curl" ]]; }
+# dry-run 只跳过安装后 dpkg 验证；测试桩仍记录 APT 参数。
+# shellcheck disable=SC2034
+DRY_RUN=1
+package_install_latest curl jq >/dev/null
+[[ "$updates" -eq 1 && "${#captured[@]}" -eq 4 && "${captured[0]}" == "install" &&
+  "${captured[1]}" == "-y" && "${captured[2]}" == "curl" && "${captured[3]}" == "jq" ]] || {
+  printf 'FAIL: 最新候选版本安装没有包含缺失或可更新软件\n' >&2
+  exit 1
+}
+# package_verify_candidate 从运行时读取该全局开关。
+# shellcheck disable=SC2034
+DRY_RUN=0
+
+updates=0
+captured=()
+# package_upgrade 通过平台模块间接调用这两个测试桩。
+# shellcheck disable=SC2317,SC2329
 package_installed() { return 0; }
+# shellcheck disable=SC2317,SC2329
 package_has_update() { return 0; }
 package_upgrade jq >/dev/null
 [[ "$updates" -eq 1 && "${#captured[@]}" -eq 4 && "${captured[0]}" == "install" && \
@@ -41,6 +68,31 @@ package_upgrade jq >/dev/null
   printf 'FAIL: 单项软件更新没有使用 only-upgrade\n' >&2
   exit 1
 }
+
+installed_state=1
+# package_remove 通过平台模块间接调用这两个测试桩。
+# shellcheck disable=SC2317,SC2329
+package_installed() { [[ "$installed_state" -eq 1 ]]; }
+# shellcheck disable=SC2317,SC2329
+apt_run() { installed_state=0; }
+package_remove jq >/dev/null
+[[ "$installed_state" -eq 0 ]] || {
+  printf 'FAIL: 软件移除流程没有执行 APT\n' >&2
+  exit 1
+}
+installed_state=1
+# shellcheck disable=SC2317,SC2329
+apt_run() { :; }
+if package_remove jq >/dev/null 2>&1; then
+  printf 'FAIL: 软件仍存在时移除流程误报成功\n' >&2
+  exit 1
+fi
+
+service_exists() { return 1; }
+if service_enable_now missing.service >/dev/null 2>&1; then
+  printf 'FAIL: 不存在的 systemd 单元被误报为已启用\n' >&2
+  exit 1
+fi
 
 systemctl() {
   if [[ "$1" == "is-active" ]]; then

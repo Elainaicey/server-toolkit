@@ -21,9 +21,20 @@ expected_version="$(tr -d '[:space:]' < VERSION)"
 [[ "$(bash bin/serverctl version)" == "Server Toolkit $expected_version" ]]
 bash bin/serverctl --help | grep -q '一次只接受一个软件 ID'
 bash bin/serverctl --help | grep -q 'update ID'
-bash bin/serverctl --help | grep -q 'health'
+bash bin/serverctl --help | grep -q 'sources'
+bash bin/serverctl --help | grep -q 'official-updates'
+bash bin/serverctl --help | grep -q 'exposure'
+bash bin/serverctl --help | grep -q 'doctor'
+bash bin/serverctl --help | grep -q 'triage'
+bash bin/serverctl --help | grep -q 'probe HOST PORT'
+bash bin/serverctl --help | grep -q 'auth-activity'
+bash bin/serverctl --help | grep -q 'app ID'
 bash bin/serverctl --help | grep -q 'dns \[域名\]'
 bash bin/serverctl --help | grep -q 'logs SERVICE'
+if bash bin/serverctl --help | grep -Eq 'serverctl (health|toolkit-doctor|users|user |timer )'; then
+  printf 'FAIL: CLI 帮助仍包含已移除的重复或多用户入口\n' >&2
+  exit 1
+fi
 bash install.sh --help | grep -q 'Server Toolkit 安装器'
 bash scripts/install.sh --help | grep -q -- '--purge-data'
 

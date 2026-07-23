@@ -11,24 +11,30 @@ platform_detect() { :; }
 catalog_install() { captured="$1"; }
 catalog_update() { captured="update:$1"; }
 catalog_print() { captured="list:${1:-}"; }
+catalog_sources_view() { captured="sources"; }
+catalog_official_updates_view() { captured="official-updates:$1"; }
+security_exposure_analysis() { captured="exposure:$1"; }
 toolkit_uninstall() { captured="uninstall"; }
-system_health_report() { captured="health"; }
-system_package_health() { captured="updates"; }
-system_disk_usage() { captured="storage"; }
+toolkit_doctor() { captured="doctor"; }
+system_triage() { captured="triage:$1"; }
+system_package_health() { captured="updates:$1"; }
+system_disk_usage() { captured="storage:$1"; }
 service_exists() { return 0; }
-unit_exists() { return 0; }
 services_logs() { captured="logs:$1"; }
 services_select() { captured="service:$1"; }
 services_apply_action() { captured="service:$1:$2"; }
-services_timer_select() { captured="timer:$1"; }
 services_journal_info() { captured="journal"; }
 system_swap_manage() { captured="swap"; }
 docker_compose_manage() { captured="compose:$1"; }
-system_accounts_menu() { captured="users"; }
-account_exists() { return 0; }
-system_account_select() { captured="user:$1"; }
+backups_delete_snapshot() { captured="backup-delete:$1"; }
+backups_cleanup() { captured="backup-cleanup"; }
 process_exists() { return 0; }
 system_process_select() { captured="process:$1"; }
+network_endpoint_probe() { captured="probe:$1:$2"; }
+network_path_trace() { captured="trace:$1"; }
+network_interface_detail() { captured="interface:$1"; }
+security_auth_activity() { captured="auth-activity:$1"; }
+apps_service_detail() { captured="app:$1"; }
 
 main install jq --dry-run
 [[ "$captured" == "jq" && "$DRY_RUN" -eq 1 ]] || { printf 'FAIL: 单项安装参数解析错误\n' >&2; exit 1; }
@@ -39,34 +45,72 @@ main list python
 main update jq
 [[ "$captured" == "update:jq" ]] || { printf 'FAIL: update 参数解析错误\n' >&2; exit 1; }
 
+main sources
+[[ "$captured" == "sources" ]] || { printf 'FAIL: sources 命令没有进入来源浏览\n' >&2; exit 1; }
+
+main official-updates
+[[ "$captured" == "official-updates:0" ]] || { printf 'FAIL: official-updates 命令没有进入官方更新检查\n' >&2; exit 1; }
+
+main exposure
+[[ "$captured" == "exposure:0" ]] || { printf 'FAIL: exposure 命令没有进入公网暴露分析\n' >&2; exit 1; }
+
 if (main install curl jq >/dev/null 2>&1); then
   printf 'FAIL: CLI 接受了多个软件 ID\n' >&2
   exit 1
 fi
 
-main health
-[[ "$captured" == "health" ]] || { printf 'FAIL: health 命令没有进入健康巡检\n' >&2; exit 1; }
+main doctor
+[[ "$captured" == "doctor" ]] || { printf 'FAIL: doctor 命令没有进入运行环境与项目检查\n' >&2; exit 1; }
+
+main triage
+[[ "$captured" == "triage:0" ]] || { printf 'FAIL: triage 命令没有进入只读快速排查\n' >&2; exit 1; }
 
 main updates
-[[ "$captured" == "updates" ]] || { printf 'FAIL: updates 命令没有进入更新清单\n' >&2; exit 1; }
+[[ "$captured" == "updates:0" ]] || { printf 'FAIL: updates 命令没有进入只读更新清单\n' >&2; exit 1; }
 
 main storage
-[[ "$captured" == "storage" ]] || { printf 'FAIL: storage 命令没有进入存储诊断\n' >&2; exit 1; }
+[[ "$captured" == "storage:0" ]] || { printf 'FAIL: storage 命令没有进入只读存储概览\n' >&2; exit 1; }
 
 main swap
 [[ "$captured" == "swap" ]] || { printf 'FAIL: swap 命令没有进入生命周期管理\n' >&2; exit 1; }
 
-main users
-[[ "$captured" == "users" ]] || { printf 'FAIL: users 命令没有进入账户中心\n' >&2; exit 1; }
-
-main user deploy
-[[ "$captured" == "user:deploy" ]] || { printf 'FAIL: user 命令没有进入账户详情\n' >&2; exit 1; }
-
 main process 1234
 [[ "$captured" == "process:1234" ]] || { printf 'FAIL: process 命令没有进入进程详情\n' >&2; exit 1; }
 
-if (main user '../root' >/dev/null 2>&1) || (main process '1;reboot' >/dev/null 2>&1); then
-  printf 'FAIL: CLI 接受了危险账户名或 PID\n' >&2
+if (main process '1;reboot' >/dev/null 2>&1); then
+  printf 'FAIL: CLI 接受了危险 PID\n' >&2
+  exit 1
+fi
+
+for removed_command in health toolkit-doctor users user timer; do
+  if (main "$removed_command" >/dev/null 2>&1); then
+    printf 'FAIL: 已精简命令仍可调用：%s\n' "$removed_command" >&2
+    exit 1
+  fi
+done
+
+main probe example.com 443
+[[ "$captured" == "probe:example.com:443" ]] || { printf 'FAIL: probe 命令分发错误\n' >&2; exit 1; }
+
+main trace example.com
+[[ "$captured" == "trace:example.com" ]] || { printf 'FAIL: trace 命令分发错误\n' >&2; exit 1; }
+
+main interface ens3
+[[ "$captured" == "interface:ens3" ]] || { printf 'FAIL: interface 命令分发错误\n' >&2; exit 1; }
+
+main auth-activity
+[[ "$captured" == "auth-activity:24" ]] || { printf 'FAIL: auth-activity 命令分发错误\n' >&2; exit 1; }
+
+main app nginx
+[[ "$captured" == "app:nginx" ]] || { printf 'FAIL: app 命令没有进入应用专属详情\n' >&2; exit 1; }
+
+if (main app unknown-app >/dev/null 2>&1); then
+  printf 'FAIL: app 命令接受了未知应用 ID\n' >&2
+  exit 1
+fi
+
+if (main interface '../eth0' >/dev/null 2>&1); then
+  printf 'FAIL: interface 命令接受了危险接口名\n' >&2
   exit 1
 fi
 
@@ -79,14 +123,22 @@ main service nginx.service
 main service nginx.service restart
 [[ "$captured" == "service:nginx.service:restart" ]] || { printf 'FAIL: service 生命周期动作分发错误\n' >&2; exit 1; }
 
-main timer apt-daily.timer
-[[ "$captured" == "timer:apt-daily.timer" ]] || { printf 'FAIL: timer 命令没有进入 Timer 管理\n' >&2; exit 1; }
-
 main journal
 [[ "$captured" == "journal" ]] || { printf 'FAIL: journal 命令没有进入日志管理\n' >&2; exit 1; }
 
 main compose edge-proxy
 [[ "$captured" == "compose:edge-proxy" ]] || { printf 'FAIL: compose 命令没有进入项目管理\n' >&2; exit 1; }
+
+main backup-delete 20260723-120000-42
+[[ "$captured" == "backup-delete:20260723-120000-42" ]] || { printf 'FAIL: backup-delete 命令没有删除指定快照\n' >&2; exit 1; }
+
+main backup-cleanup
+[[ "$captured" == "backup-cleanup" ]] || { printf 'FAIL: backup-cleanup 命令没有进入清理流程\n' >&2; exit 1; }
+
+if (main backup-delete '../etc' >/dev/null 2>&1); then
+  printf 'FAIL: backup-delete 接受了危险快照编号\n' >&2
+  exit 1
+fi
 
 if (main logs '../nginx' >/dev/null 2>&1); then
   printf 'FAIL: logs 接受了危险服务名\n' >&2

@@ -18,23 +18,22 @@ if [[ -r "$INSTALL_METADATA" ]]; then
   # shellcheck source=/dev/null
   . "$INSTALL_METADATA"
   SERVER_TOOLKIT_LOG_ROOT="${SERVER_TOOLKIT_LOG_ROOT:-/var/log/server-toolkit}"
-  export SERVER_TOOLKIT_BACKUP_ROOT SERVER_TOOLKIT_LOG_ROOT SERVER_TOOLKIT_STATE_ROOT
+  export SERVER_TOOLKIT_BACKUP_ROOT SERVER_TOOLKIT_DOCKER_BACKUP_ROOT SERVER_TOOLKIT_LOG_ROOT SERVER_TOOLKIT_STATE_ROOT
   SERVER_TOOLKIT_AUDIT_LOG="${SERVER_TOOLKIT_AUDIT_LOG:-$SERVER_TOOLKIT_LOG_ROOT/actions.log}"
   export SERVER_TOOLKIT_AUDIT_LOG
 fi
 
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 . "$ROOT_DIR/src/core/ui.sh"
 . "$ROOT_DIR/src/core/platform.sh"
 . "$ROOT_DIR/src/core/backup.sh"
-. "$ROOT_DIR/src/core/catalog.sh"
 . "$ROOT_DIR/src/features/software.sh"
+. "$ROOT_DIR/src/features/software/releases.sh"
 . "$ROOT_DIR/src/features/software/oh-my-zsh.sh"
 . "$ROOT_DIR/src/features/software/prompts.sh"
+. "$ROOT_DIR/src/features/software/catalog.sh"
 . "$ROOT_DIR/src/features/dashboard.sh"
-. "$ROOT_DIR/src/features/system/settings.sh"
-. "$ROOT_DIR/src/features/system/accounts.sh"
-. "$ROOT_DIR/src/features/system/processes.sh"
 . "$ROOT_DIR/src/features/system.sh"
 . "$ROOT_DIR/src/features/network.sh"
 . "$ROOT_DIR/src/features/security.sh"
@@ -50,33 +49,41 @@ usage() {
 用法：
   serverctl                       打开交互控制台
   serverctl status                显示系统仪表盘
-  serverctl health                运行综合系统健康巡检
-  serverctl doctor                运行环境检查
+  serverctl doctor                检查运行环境与项目完整性
+  serverctl triage                运行只读故障快速排查
   serverctl updates               查看系统软件包更新清单
-  serverctl storage               运行存储诊断
+  serverctl storage               显示只读存储概览
   serverctl swap                  打开 Swap 生命周期管理
-  serverctl users                 打开用户与账户中心
-  serverctl user USER             管理一个本地账户
   serverctl process PID           查看并管理一个进程
   serverctl list [关键词]         查询软件目录
+  serverctl sources               按维护来源浏览软件
+  serverctl official-updates      检查已安装官方 Release 更新
+  serverctl exposure              分析公网监听、进程、容器与 UFW
   serverctl install ID            安装一个软件
   serverctl update ID             更新一个已安装软件
   serverctl remove ID             移除一个软件
   serverctl ports                 查看监听端口
   serverctl dns [域名]            诊断系统 DNS 解析
+  serverctl probe HOST PORT       探测目标 TCP 端口
+  serverctl trace HOST            查看目标链路路径
+  serverctl interface IFACE       查看一个网络接口详情
   serverctl system                打开系统管理中心
   serverctl network               打开网络与端口中心
   serverctl security              打开安全中心
+  serverctl auth-activity         汇总最近 24 小时 SSH 登录活动
   serverctl services              打开服务与日志中心
   serverctl service SERVICE       打开一个 systemd 服务的管理页
   serverctl service SERVICE ACTION
                                   执行 start/stop/restart/enable/disable
-  serverctl timer TIMER           管理一个 systemd Timer
   serverctl journal               打开 Journal 管理
   serverctl logs SERVICE          查看一个 systemd 服务的最近日志
   serverctl apps                  打开应用与容器中心
+  serverctl app ID                打开一个已安装应用的专属详情
   serverctl compose PROJECT       管理一个现有 Docker Compose 项目
   serverctl backups               打开备份与恢复中心
+  serverctl backup-delete SNAPSHOT
+                                  删除一个明确选择的项目快照
+  serverctl backup-cleanup        按保留数量或天数清理历史快照
   serverctl about                 显示项目与安装信息
   serverctl self-update           更新 Server Toolkit
   serverctl uninstall             卸载 Server Toolkit
@@ -87,7 +94,8 @@ usage() {
   --no-color                      禁用颜色
   -h, --help                      显示帮助
 
-修改动作始终需要人工确认；软件安装、更新和移除一次只接受一个软件 ID。
+工具仅在命令运行期间工作，不创建后台监控或自动任务。修改动作始终需要人工确认；
+软件安装、更新和移除一次只接受一个软件 ID。
 EOF
 }
 
@@ -99,16 +107,16 @@ main_menu() {
     ui_context "$OS_NAME · $ARCH · ${MEMORY_MB} MB RAM · load $LOAD_AVERAGE"
     ui_section "观察与诊断" "primary"
     ui_item 1 "系统仪表盘" "先了解资源、服务与更新状态"
-    ui_item 2 "系统管理" "健康、进程、用户、时间、磁盘与维护"
+    ui_item 2 "系统管理" "故障排查、进程、软件包、存储与基础设置"
     ui_item 3 "网络与端口" "连通性、目标诊断、监听端口与 BBR"
     ui_item 4 "安全中心" "安全审计、UFW、SSH 与登录防护"
-    ui_item 5 "服务与日志" "systemd 服务、Timer、Journal 与启动错误"
+    ui_item 5 "服务与日志" "systemd 服务、Journal、启动错误与操作记录"
     ui_section "软件与数据" "accent"
-    ui_item 6 "软件管理" "搜索、查看版本、安装、更新或移除独立软件"
+    ui_item 6 "软件管理" "多来源搜索、版本、完整性、安装、更新与移除"
     ui_item 7 "应用与容器" "Docker、Web、数据库和缓存服务"
     ui_item 8 "备份与恢复" "查看并恢复配置备份"
     ui_item 0 "退出"
-    ui_note "查询操作无需 root；系统修改会展示摘要、备份配置并再次确认。"
+    ui_note "面向单 root VPS；所有检查按需运行，系统修改会展示影响并再次确认。"
     choice="$(read_input "请选择" "1")"
     case "$choice" in
       1) dashboard_show; pause ;;
@@ -126,7 +134,7 @@ main_menu() {
 }
 
 main() {
-  local command="menu" command_set=0
+  local command="menu" command_set=0 record service
   local arguments=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -154,38 +162,27 @@ main() {
       platform_detect
       dashboard_show
       ;;
-    health)
-      ((${#arguments[@]} == 0)) || die "health 不接受参数"
-      system_health_report
-      ;;
     doctor)
       ((${#arguments[@]} == 0)) || die "doctor 不接受参数"
-      platform_detect
-      system_doctor
+      toolkit_doctor
+      ;;
+    triage)
+      ((${#arguments[@]} == 0)) || die "triage 不接受参数"
+      system_triage 0
       ;;
     updates)
       ((${#arguments[@]} == 0)) || die "updates 不接受参数"
       platform_detect
-      system_package_health
+      system_package_health 0
       ;;
     storage)
       ((${#arguments[@]} == 0)) || die "storage 不接受参数"
       platform_detect
-      system_disk_usage
+      system_disk_usage 0
       ;;
     swap)
       ((${#arguments[@]} == 0)) || die "swap 不接受参数"
       system_swap_manage
-      ;;
-    users)
-      ((${#arguments[@]} == 0)) || die "users 不接受参数"
-      system_accounts_menu
-      ;;
-    user)
-      ((${#arguments[@]} == 1)) || die "user 需要且只接受一个用户名"
-      valid_username "${arguments[0]}" || die "用户名格式无效"
-      account_exists "${arguments[0]}" || die "账户不存在：${arguments[0]}"
-      system_account_select "${arguments[0]}"
       ;;
     process)
       ((${#arguments[@]} == 1)) || die "process 需要且只接受一个 PID"
@@ -197,6 +194,21 @@ main() {
       ((${#arguments[@]} <= 1)) || die "list 最多接受一个关键词"
       platform_detect
       catalog_print "${arguments[0]:-}"
+      ;;
+    sources)
+      ((${#arguments[@]} == 0)) || die "sources 不接受参数"
+      platform_detect
+      catalog_sources_view
+      ;;
+    official-updates)
+      ((${#arguments[@]} == 0)) || die "official-updates 不接受参数"
+      platform_detect
+      catalog_official_updates_view 0
+      ;;
+    exposure)
+      ((${#arguments[@]} == 0)) || die "exposure 不接受参数"
+      platform_detect
+      security_exposure_analysis 0
       ;;
     install)
       ((${#arguments[@]} == 1)) || die "install 一次只能接受一个软件 ID"
@@ -223,6 +235,19 @@ main() {
       platform_detect
       network_dns_diagnose "${arguments[0]:-}"
       ;;
+    probe)
+      ((${#arguments[@]} == 2)) || die "probe 需要目标和 TCP 端口"
+      network_endpoint_probe "${arguments[0]}" "${arguments[1]}"
+      ;;
+    trace)
+      ((${#arguments[@]} == 1)) || die "trace 需要且只接受一个目标"
+      network_path_trace "${arguments[0]}"
+      ;;
+    interface)
+      ((${#arguments[@]} == 1)) || die "interface 需要且只接受一个网络接口名"
+      valid_network_interface "${arguments[0]}" || die "网络接口名称格式无效"
+      network_interface_detail "${arguments[0]}"
+      ;;
     system)
       ((${#arguments[@]} == 0)) || die "system 不接受参数"
       platform_detect
@@ -237,6 +262,10 @@ main() {
       ((${#arguments[@]} == 0)) || die "security 不接受参数"
       platform_detect
       security_menu
+      ;;
+    auth-activity)
+      ((${#arguments[@]} == 0)) || die "auth-activity 不接受参数"
+      security_auth_activity 24
       ;;
     services)
       ((${#arguments[@]} == 0)) || die "services 不接受参数"
@@ -253,14 +282,6 @@ main() {
         services_apply_action "${arguments[0]}" "${arguments[1]}"
       fi
       ;;
-    timer)
-      ((${#arguments[@]} == 1)) || die "timer 需要且只接受一个 Timer 名称"
-      if ! valid_service_name "${arguments[0]}" || [[ "${arguments[0]}" != *.timer ]]; then
-        die "Timer 名称格式无效"
-      fi
-      unit_exists "${arguments[0]}" || die "没有找到 Timer：${arguments[0]}"
-      services_timer_select "${arguments[0]}"
-      ;;
     journal)
       ((${#arguments[@]} == 0)) || die "journal 不接受参数"
       services_journal_info
@@ -276,6 +297,14 @@ main() {
       platform_detect
       apps_menu
       ;;
+    app)
+      ((${#arguments[@]} == 1)) || die "app 需要且只接受一个应用 ID"
+      record="$(apps_service_record_by_id "${arguments[0]}" 2>/dev/null || true)"
+      [[ -n "$record" ]] || die "未知应用 ID：${arguments[0]}"
+      service="$(apps_service_unit "${arguments[0]}")"
+      service_exists "$service" || die "应用服务未安装：$service"
+      apps_service_detail "${arguments[0]}"
+      ;;
     compose)
       ((${#arguments[@]} == 1)) || die "compose 需要且只接受一个项目名称"
       platform_detect
@@ -285,6 +314,15 @@ main() {
       ((${#arguments[@]} == 0)) || die "backups 不接受参数"
       platform_detect
       backups_menu
+      ;;
+    backup-delete)
+      ((${#arguments[@]} == 1)) || die "backup-delete 需要且只接受一个快照编号"
+      backup_valid_snapshot "${arguments[0]}" || die "快照编号格式无效"
+      backups_delete_snapshot "${arguments[0]}"
+      ;;
+    backup-cleanup)
+      ((${#arguments[@]} == 0)) || die "backup-cleanup 不接受参数"
+      backups_cleanup
       ;;
     about)
       ((${#arguments[@]} == 0)) || die "about 不接受参数"

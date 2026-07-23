@@ -63,35 +63,83 @@ apt_run() {
     -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold -o Acquire::Retries=3 "$@"
 }
 
-package_update_index() { [[ "$PACKAGE_INDEX_UPDATED" -eq 1 ]] && return 0; info "刷新软件索引……"; apt_run update; PACKAGE_INDEX_UPDATED=1; }
+package_update_index() {
+  [[ "$PACKAGE_INDEX_UPDATED" -eq 1 ]] && return 0
+  info "刷新软件索引……"
+  apt_run update || { warn "APT 软件索引刷新失败。"; return 1; }
+  PACKAGE_INDEX_UPDATED=1
+}
 package_invalidate_index() { PACKAGE_INDEX_UPDATED=0; }
 
+package_verify_candidate() {
+  local package="$1" installed candidate
+  [[ "$DRY_RUN" -eq 0 ]] || return 0
+  installed="$(package_installed_version "$package")"
+  candidate="$(package_candidate_version "$package")"
+  [[ -n "$installed" ]] || { warn "$package 安装后未通过状态验证。"; return 1; }
+  if [[ -n "$candidate" && "$candidate" != "(none)" ]] && dpkg --compare-versions "$candidate" gt "$installed"; then
+    warn "$package 当前版本 $installed 仍低于软件源候选版本 $candidate。"
+    return 1
+  fi
+}
+
 package_install() {
-  local requested=("$@") missing=() package display=""
+  local requested=("$@") missing=() package display="" failed=0
   for package in "${requested[@]}"; do [[ -n "$package" ]] && ! package_installed "$package" && missing+=("$package"); done
   ((${#missing[@]} > 0)) || { info "已经安装，无需操作。"; return 0; }
-  package_update_index; printf -v display '%s ' "${missing[@]}"; info "将安装系统包：${display% }"
-  apt_run install -y "${missing[@]}"
+  package_update_index || return 1
+  printf -v display '%s ' "${missing[@]}"; info "将安装系统包：${display% }"
+  apt_run install -y "${missing[@]}" || { warn "APT 软件安装失败。"; return 1; }
+  for package in "${missing[@]}"; do package_verify_candidate "$package" || failed=1; done
+  (( failed == 0 ))
+}
+
+package_install_latest() {
+  local requested=("$@") targets=() package candidate display="" failed=0
+  package_update_index || return 1
+  for package in "${requested[@]}"; do
+    [[ -n "$package" ]] || continue
+    candidate="$(package_candidate_version "$package")"
+    if [[ -z "$candidate" || "$candidate" == "(none)" ]]; then
+      if [[ "$DRY_RUN" -eq 1 ]]; then targets+=("$package"); continue; fi
+      warn "软件源没有提供 $package 的候选版本。"
+      return 1
+    fi
+    if ! package_installed "$package" || package_has_update "$package"; then targets+=("$package"); fi
+  done
+  ((${#targets[@]} > 0)) || { info "所选软件已经是当前软件源中的最新版本。"; return 0; }
+  printf -v display '%s ' "${targets[@]}"
+  info "将安装软件源最新候选版本：${display% }"
+  apt_run install -y "${targets[@]}" || { warn "APT 最新候选版本安装失败。"; return 1; }
+  for package in "${targets[@]}"; do package_verify_candidate "$package" || failed=1; done
+  (( failed == 0 ))
 }
 
 package_remove() {
-  local requested=("$@") installed=() package display=""
+  local requested=("$@") installed=() package display="" failed=0
   for package in "${requested[@]}"; do [[ -n "$package" ]] && package_installed "$package" && installed+=("$package"); done
   ((${#installed[@]} > 0)) || { info "软件未安装。"; return 0; }
   printf -v display '%s ' "${installed[@]}"; info "将移除系统包：${display% }"
-  apt_run remove -y "${installed[@]}"
+  apt_run remove -y "${installed[@]}" || { warn "APT 软件移除失败。"; return 1; }
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    for package in "${installed[@]}"; do
+      if package_installed "$package"; then warn "$package 移除后仍处于已安装状态。"; failed=1; fi
+    done
+  fi
+  (( failed == 0 ))
 }
 
 package_upgrade() {
   local package="$1"
   package_installed "$package" || { warn "$package 尚未安装。"; return 1; }
-  package_update_index
+  package_update_index || return 1
   if ! package_has_update "$package"; then
     info "$package 已经是软件仓库中的最新版本。"
     return 0
   fi
   info "将更新系统包：$package"
-  apt_run install --only-upgrade -y "$package"
+  apt_run install --only-upgrade -y "$package" || { warn "APT 软件更新失败。"; return 1; }
+  package_verify_candidate "$package"
 }
 
 package_upgradable_count() { apt list --upgradable 2>/dev/null | sed '1d' | grep -c . || true; }
@@ -104,8 +152,11 @@ service_exists() {
   [[ "$1" == *.service ]] && unit_exists "$1"
 }
 service_enable_now() {
-  if service_exists "$1"; then
-    run systemctl enable --now "$1"
+  service_exists "$1" || { warn "未找到 systemd 单元：$1"; return 1; }
+  run systemctl enable --now "$1" || { warn "$1 启用或启动失败。"; return 1; }
+  if [[ "$DRY_RUN" -eq 0 ]]; then
+    systemctl is-enabled --quiet "$1" || { warn "$1 未启用开机启动。"; return 1; }
+    systemctl is-active --quiet "$1" || { warn "$1 启动后未进入 active 状态。"; return 1; }
   fi
 }
 service_state() {

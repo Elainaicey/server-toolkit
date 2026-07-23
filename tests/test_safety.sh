@@ -5,6 +5,7 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd)"
 # shellcheck source=../src/core/runtime.sh
 . "$ROOT_DIR/src/core/runtime.sh"
+. "$ROOT_DIR/src/core/validation.sh"
 
 [[ "$(read_input "测试输入" "默认值" </dev/null)" == "默认值" ]] || {
   printf 'FAIL: 非交互输入没有正确返回默认值\n' >&2
@@ -43,15 +44,29 @@ valid_firewall_source any || { printf 'FAIL: any 来源被拒绝\n' >&2; exit 1;
 valid_firewall_source 203.0.113.10 || { printf 'FAIL: IPv4 来源被拒绝\n' >&2; exit 1; }
 valid_firewall_source 10.0.0.0/8 || { printf 'FAIL: IPv4 CIDR 被拒绝\n' >&2; exit 1; }
 valid_firewall_source 2001:db8::/32 || { printf 'FAIL: IPv6 CIDR 被拒绝\n' >&2; exit 1; }
+valid_firewall_source ::1 || { printf 'FAIL: IPv6 回环地址被拒绝\n' >&2; exit 1; }
+valid_firewall_source 2001:db8:0:1:2:3:4:5 || { printf 'FAIL: 完整 IPv6 地址被拒绝\n' >&2; exit 1; }
 if valid_firewall_source 999.0.0.1 || valid_firewall_source 10.0.0.0/33 ||
-  valid_firewall_source 'host;reboot'; then
+  valid_firewall_source 1:2:3 || valid_firewall_source 1::2::3 ||
+  valid_firewall_source 2001:db8::/129 || valid_firewall_source 'host;reboot'; then
   printf 'FAIL: 接受了无效防火墙来源\n' >&2
   exit 1
 fi
 
 safe_managed_path /opt/server-toolkit || { printf 'FAIL: 正常路径被拒绝\n' >&2; exit 1; }
-if safe_managed_path / || safe_managed_path /opt || safe_managed_path /var/../etc; then
+if safe_managed_path / || safe_managed_path /opt || safe_managed_path /var/ ||
+  safe_managed_path /var// || safe_managed_path /var//log ||
+  safe_managed_path /var/../etc || safe_managed_path $'/var/log\n/unsafe'; then
   printf 'FAIL: 接受了危险路径\n' >&2
+  exit 1
+fi
+safe_toolkit_path /var/lib/server-toolkit/software-releases || {
+  printf 'FAIL: 正常项目数据路径被拒绝\n' >&2
+  exit 1
+}
+if safe_toolkit_path /var/log || safe_toolkit_path /var/backups/general ||
+  safe_toolkit_path /var//server-toolkit; then
+  printf 'FAIL: 接受了不属于项目的数据根路径\n' >&2
   exit 1
 fi
 
@@ -61,9 +76,9 @@ if valid_service_name '../ssh' || valid_service_name 'ssh service'; then
   exit 1
 fi
 
-valid_username deploy || { printf 'FAIL: 正常用户名被拒绝\n' >&2; exit 1; }
-if valid_username '../root' || valid_username 'Deploy User'; then
-  printf 'FAIL: 接受了危险用户名\n' >&2
+valid_package_name linux-image-amd64 || { printf 'FAIL: 正常软件包名被拒绝\n' >&2; exit 1; }
+if valid_package_name '../curl' || valid_package_name 'curl;reboot'; then
+  printf 'FAIL: 接受了危险软件包名\n' >&2
   exit 1
 fi
 
@@ -83,6 +98,14 @@ valid_network_target github.com || { printf 'FAIL: 正常域名被拒绝\n' >&2;
 valid_network_target 2001:db8::1 || { printf 'FAIL: 正常 IPv6 被拒绝\n' >&2; exit 1; }
 if valid_network_target '../host' || valid_network_target 'host;reboot'; then
   printf 'FAIL: 接受了危险网络目标\n' >&2
+  exit 1
+fi
+
+valid_network_interface ens3 || { printf 'FAIL: 正常网络接口名被拒绝\n' >&2; exit 1; }
+valid_network_interface br-ab12cd34 || { printf 'FAIL: 正常网桥接口名被拒绝\n' >&2; exit 1; }
+if valid_network_interface '../eth0' || valid_network_interface 'eth0;down' ||
+  valid_network_interface 'interface-name-is-too-long'; then
+  printf 'FAIL: 接受了危险或过长网络接口名\n' >&2
   exit 1
 fi
 
